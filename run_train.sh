@@ -1,3 +1,5 @@
+source /home/sf/anaconda3/bin/activate pysot
+
 path="./experiments/siamcar_r50"
 
 export CUDA_VISIBLE_DEVICES=0

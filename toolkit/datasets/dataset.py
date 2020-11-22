@@ -23,7 +23,7 @@ class Dataset(object):
     def set_tracker(self, path, tracker_names):
         """
         Args:
-            path: path to tracker results,
+            path: path to results test dataset
             tracker_names: list of tracker name
         """
         self.tracker_path = path

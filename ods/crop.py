@@ -146,12 +146,12 @@ def show(img, dst):
 
 
 def input_img():#
-    path = '1158.png'
+    path = './test_img/1158.png'
     # path = 'img_fish.jpg'
     img = cv2.imread(path)
     dst = np.zeros(img.shape, dtype=img.dtype)
     print('dst', dst.shape)
-    dst = transform4(img, dst)
+    dst = transform(img, dst)
     # dst = transform3(img)
     show(img, dst)
     cv2.destroyAllWindows()

@@ -65,7 +65,7 @@ def undistort(src, r):
 
 if __name__ == "__main__":
     t = time.perf_counter()
-    path = '1158.png'
+    path = './test_img/1158.png'
     # path = 'a.png'
     frame = cv2.imread(path)
     R = 100
@@ -77,5 +77,5 @@ if __name__ == "__main__":
     cv2.imshow('dst', result_img)
     cv2.waitKey()
     cv2.destroyAllWindows()
-    cv2.imwrite('./pig_{}.jpg'.format(R), result_img)
+    cv2.imwrite('./test_img/pig_{}.jpg'.format(R), result_img)
     print(time.perf_counter() - t)

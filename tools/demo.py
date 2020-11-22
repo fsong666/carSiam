@@ -1,8 +1,3 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import os
 import sys
 sys.path.append('../')
@@ -12,10 +7,10 @@ import cv2
 import torch
 from glob import glob
 
-from pysot.core.config import cfg
-from pysot.models.model_builder import ModelBuilder
-from pysot.tracker.siamcar_tracker import SiamCARTracker
-from pysot.utils.model_load import load_pretrain
+from carsot.core.config import cfg
+from carsot.models.model_builder import ModelBuilder
+from carsot.tracker.siamcar_tracker import SiamCARTracker
+from carsot.utils.model_load import load_pretrain
 
 torch.set_num_threads(1)
 
@@ -91,9 +86,9 @@ def main():
             bbox = list(map(int, outputs['bbox']))
             cv2.rectangle(frame, (bbox[0], bbox[1]),
                           (bbox[0]+bbox[2], bbox[1]+bbox[3]),
-                          (0, 255, 0), 3)
+                          (0, 255, 0), 2)
             cv2.imshow(video_name, frame)
-            cv2.waitKey(40)
+            cv2.waitKey(50)
 
 
 if __name__ == '__main__':

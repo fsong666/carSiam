@@ -31,8 +31,9 @@ class Video(object):
 
     def load_tracker(self, path, tracker_names=None, store=True):
         """
+        load predicted bbox from *.txt in self.pred_trajs
         Args:
-            path(str): path to result
+            path(str): path to result of test dataset
             tracker_name(list): name of tracker
         """
         if not tracker_names:
@@ -40,6 +41,8 @@ class Video(object):
                              if os.path.isdir(x)]
         if isinstance(tracker_names, str):
             tracker_names = [tracker_names]
+        # print('path:', path)
+        # print('tracjer_name:', tracker_names)
         for name in tracker_names:
             traj_file = os.path.join(path, name, self.name + '.txt')
             if os.path.exists(traj_file):

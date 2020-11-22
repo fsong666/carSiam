@@ -56,10 +56,12 @@ TRAIN:
 
 DATASET:
     NAMES:
-    - 'DET'
+    - 'ODS'
+#    - 'DET'
 #    - 'VID'
 #    - 'YOUTUBEBB'
 #    - 'COCO'
+
 
     TEMPLATE:
         SHIFT: 4

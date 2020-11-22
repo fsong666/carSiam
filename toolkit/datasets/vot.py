@@ -74,7 +74,9 @@ class VOTVideo(Video):
         if isinstance(tracker_names, str):
             tracker_names = [tracker_names]
         for name in tracker_names:
+            # len(traj_files) 每个测试视频可能有多个txt文件, 一般len(traj_files) = 1
             traj_files = glob(os.path.join(path, name, 'baseline', self.name, '*0*.txt'))
+            # print(len(traj_files))
             if len(traj_files) == 15:
                 traj_files = traj_files
             else:

@@ -35,7 +35,7 @@ class OPEBenchmark:
         success_ret = {}
         for tracker_name in eval_trackers:
             success_ret_ = {}
-            for video in self.dataset:
+            for video in self.dataset:  # 返回dataset里的 Video对象
                 gt_traj = np.array(video.gt_traj)
                 if tracker_name not in video.pred_trajs:
                     tracker_traj = video.load_tracker(self.dataset.tracker_path,
@@ -43,6 +43,8 @@ class OPEBenchmark:
                     tracker_traj = np.array(tracker_traj)
                 else:
                     tracker_traj = np.array(video.pred_trajs[tracker_name])
+                assert tracker_traj is not None
+                assert len(tracker_traj) > 0
                 n_frame = len(gt_traj)
                 if hasattr(video, 'absent'):
                     gt_traj = gt_traj[video.absent == 1]

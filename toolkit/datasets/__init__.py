@@ -3,6 +3,8 @@ from .uav import UAVDataset
 from .lasot import LaSOTDataset
 from .got10k import GOT10kDataset
 from .vot import VOTDataset
+from .ods import ODSDataset
+
 
 class DatasetFactory(object):
     @staticmethod
@@ -28,6 +30,8 @@ class DatasetFactory(object):
             dataset = GOT10kDataset(**kwargs)
         elif 'VOT2018' == name:
             dataset = VOTDataset(**kwargs)
+        elif 'ODS' == name:
+            dataset = ODSDataset(**kwargs)
         else:
             raise Exception("unknow dataset {}".format(kwargs['name']))
         return dataset

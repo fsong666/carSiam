@@ -40,14 +40,6 @@ for subset in vid:
                 trackid = obj['trackid']
                 occluded = obj['occ']
                 bbox = obj['bbox']
-                # if occluded:
-                #     continue
-                #
-                # if not(check_size(frame_sz, bbox) and check_borders(frame_sz, bbox)):
-                #     continue
-                #
-                # if obj['c'] in ['n01674464', 'n01726692', 'n04468005', 'n02062744']:
-                #     continue
 
                 if trackid not in id_set:
                     id_set.append(trackid)
@@ -59,7 +51,7 @@ for subset in vid:
             frame_ids = sorted(id_frames[selected])
             sequences = np.split(frame_ids, np.array(np.where(np.diff(frame_ids) > 1)[0]) + 1)
             sequences = [s for s in sequences if len(s) > 1]  # remove isolated frame.
-            for seq in sequences:
+            for seq in sequences:  # 多段连续帧
                 snippet = dict()
                 for frame_id in seq:
                     frame = frames[frame_id]
@@ -68,7 +60,7 @@ for subset in vid:
                             o = obj
                             continue
                     snippet[frame['img_path'].split('.')[0]] = o['bbox']
-                snippets[video['base_path']]['{:02d}'.format(selected)] = snippet
+                snippets[video['base_path']]['{:02d}'.format(selected)] = snippet  # 只获取最后一段连续帧
                 n_snippets += 1
         print('video: {:d} snippets_num: {:d}'.format(n_videos, n_snippets))
         
