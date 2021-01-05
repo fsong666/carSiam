@@ -48,6 +48,7 @@ def crop_cubeVideo(video, crop_path=None):
 
         for object_iter in objects:
             trackid = int(object_iter.find('trackid').text)
+            if trackid == 0: continue
             bndbox = object_iter.find('bndbox')
             # two vertexes
             bbox = [int(bndbox.find('xmin').text), int(bndbox.find('ymin').text),
@@ -82,7 +83,8 @@ def gen_centerCube(num_threads=4):
     crop_path = join(ods_base_path, 'Data/train')
     if not isdir(crop_path): mkdir(crop_path)
 
-    videos = sorted(listdir(originAnn_base_path))
+    # videos = sorted(listdir(originAnn_base_path))
+    videos = ['mall_low_right']
     print(videos)
     n_videos = len(videos)
     with futures.ProcessPoolExecutor(max_workers=num_threads) as executor:

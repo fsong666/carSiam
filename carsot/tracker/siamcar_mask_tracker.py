@@ -26,18 +26,62 @@ def center2corner(center):
     y2 = y + h * 0.5
     return x1, y1, x2, y2
 
+def cxy_wh_2_rect(pos, sz):
+    """ convert (cx, cy, w, h) to (x1, y1, w, h), 0-index
+    """
+    return np.array([pos[0]-sz[0]/2, pos[1]-sz[1]/2, sz[0], sz[1]])
 
-class SiamCARTracker(SiameseTracker):
+
+class SiamCARMaskTracker(SiameseTracker):
     def __init__(self, model, cfg):
-        super(SiamCARTracker, self).__init__()
+        super(SiamCARMaskTracker, self).__init__()
         hanning = np.hanning(cfg.SCORE_SIZE)
         self.window = np.outer(hanning, hanning)
         self.model = model
         self.model.eval()
+        self.debug = False
 
     def _convert_cls(self, cls):
         cls = F.softmax(cls[:, :, :, :], dim=1).data[:, 1, :, :].cpu().numpy()
         return cls
+
+    def _crop_back(self, image, bbox, out_sz, padding=0):
+        a = (out_sz[0] - 1) / bbox[2]
+        b = (out_sz[1] - 1) / bbox[3]
+        c = -a * bbox[0]
+        d = -b * bbox[1]
+        mapping = np.array([[a, 0, c],
+                            [0, b, d]]).astype(np.float)
+        crop = cv2.warpAffine(image, mapping, (out_sz[0], out_sz[1]),
+                              flags=cv2.INTER_LINEAR,
+                              borderMode=cv2.BORDER_CONSTANT,
+                              borderValue=padding)
+        return crop
+
+    def _mask_post_processing(self, mask):
+        target_mask = (mask > cfg.TRACK.MASK_THERSHOLD)
+        target_mask = target_mask.astype(np.uint8)
+        if cv2.__version__[-5] == '4':
+            contours, _ = cv2.findContours(target_mask,
+                                           cv2.RETR_EXTERNAL,
+                                           cv2.CHAIN_APPROX_NONE)
+        else:
+            _, contours, _ = cv2.findContours(target_mask,
+                                              cv2.RETR_EXTERNAL,
+                                              cv2.CHAIN_APPROX_NONE)
+        cnt_area = [cv2.contourArea(cnt) for cnt in contours]
+        if len(contours) != 0 and np.max(cnt_area) > 100:
+            contour = contours[np.argmax(cnt_area)]
+            polygon = contour.reshape(-1, 2)
+            prbox = cv2.boxPoints(cv2.minAreaRect(polygon))
+            rbox_in_img = prbox
+        else:  # empty mask
+            location = cxy_wh_2_rect(self.center_pos, self.size)
+            rbox_in_img = np.array([[location[0], location[1]],
+                                    [location[0] + location[2], location[1]],
+                                    [location[0] + location[2], location[1] + location[3]],
+                                    [location[0], location[1] + location[3]]])
+        return rbox_in_img
 
     def init(self, img, bbox):
         """
@@ -95,30 +139,27 @@ class SiamCARTracker(SiameseTracker):
 
     def coarse_location(self, hp_cls_up, score_up, scale_score, lrtbs, img=None):
         """
-        1. 在(193,193)的hp_cls_up全局中找到最大值的点(max_r_up_hp, max_c_up_hp) 青色 (Cyan),不是最终预测bbox!!
-        2. 反缩小到(25,25),找到最大值点(max_r, max_c)对应的bbox 青色框
-        3. 将该青色bbox旋转后得到黄色bbox
-        4. 在黄色bbox区域内的hp_cls_up,局部再求出最终的最大值点
         :param hp_cls_up: 惩罚和高斯加权后的cls (193, 193)
         :param score_up: cls_up * cen_up
         :param scale_score: upsize / cfg.TRACK.SCORE_SIZE=8.64
         :param lrtbs: 原始tracker的预测的相对bbox值 [25, 25, 4]
+        :return:
         """
         upsize = (cfg.TRACK.SCORE_SIZE - 1) * cfg.TRACK.STRIDE + 1
         max_r_up_hp, max_c_up_hp = np.unravel_index(hp_cls_up.argmax(), hp_cls_up.shape)  # (max_y, max_x)
-        cv2.circle(img, (max_c_up_hp + 31, max_r_up_hp + 31), 2, (255, 255, 0), 2)  # 垂直方向bbox中心
-        print('max_r_up_hp={} | max_c_up_hp= {}'.format(max_r_up_hp, max_c_up_hp))
+        cv2.circle(img, (max_c_up_hp + 31, max_r_up_hp + 31), 2, (255, 255, 0), 2)
+        # print('max_r_up_hp={} | max_c_up_hp= {}'.format(max_r_up_hp, max_c_up_hp))
         max_r = int(round(max_r_up_hp / scale_score))
         max_c = int(round(max_c_up_hp / scale_score))
         max_r = bbox_clip(max_r, 0, cfg.TRACK.SCORE_SIZE)
         max_c = bbox_clip(max_c, 0, cfg.TRACK.SCORE_SIZE)
-        print('max_r={} | max_c= {}'.format(max_r, max_c))
+        # print('max_r={} | max_c= {}'.format(max_r, max_c))
         # print('coarse_center in (25, 25)= ', (max_c, max_r))
         bbox_region = lrtbs[max_r, max_c, :]  # 0<bbox_region<255
-        print('bbox_region= ', bbox_region)
+        # print('bbox_region= ', bbox_region)
         min_bbox = int(cfg.TRACK.REGION_S * cfg.TRACK.EXEMPLAR_SIZE)  # 0.1*127=12.7
         max_bbox = int(cfg.TRACK.REGION_L * cfg.TRACK.EXEMPLAR_SIZE)  # 0.44*127=55.88
-        print('min_bbox={}, max_bbox={}'.format(min_bbox, max_bbox))
+        # print('min_bbox={}, max_bbox={}'.format(min_bbox, max_bbox))
 
         # bbox < TRACK.EXEMPLAR_SIZE=127, 预测的bbox应在(127,127)模板框之内
         # 12 <= l <= 55
@@ -130,11 +171,11 @@ class SiamCARTracker(SiameseTracker):
         b = bbox_clip(bbox_region[3], min_bbox, max_bbox)
         pt1 = (int(max_c_up_hp - l + 31), int(max_r_up_hp - t + 31))
         pt2 = (int(max_c_up_hp + r + 31), int(max_r_up_hp + b + 31))
-        cv2.rectangle(img, pt1, pt2, (255, 255, 0), 1)  # 未旋转的bbox
+        cv2.rectangle(img, pt1, pt2, (255, 255, 0), 1)
         if l > max_r_up_hp or t > max_c_up_hp:
             print('hp_bbox_l=', l)
             print('hp_bbox_t=', t)
-            cv2.rectangle(img, (31, 31), (31 + score_up.shape[1], 31 + score_up.shape[0]), (48, 48, 255), 1)
+            cv2.rectangle(img, (31, 31), (31 + score_up.shape[1], 31 + score_up.shape[0]), (125, 255, 0), 1)
             cv2.imshow('subwindow outer ', img)
             # cv2.waitKey(0)
 
@@ -143,10 +184,9 @@ class SiamCARTracker(SiameseTracker):
         t_region = int(min(max_c_up_hp, t))
         r_region = int(min(upsize - max_r_up_hp, r))
         b_region = int(min(upsize - max_c_up_hp, b))
-        print('bbox_clip= ', (l_region, t_region, r_region, b_region))
+        # print('bbox_clip= ', (l_region, t_region, r_region, b_region))
 
         mask = np.zeros_like(score_up)
-        # 截取旋转后的bbox区域为1
         mask[max_r_up_hp - l_region:max_r_up_hp + r_region + 1, max_c_up_hp - t_region:max_c_up_hp + b_region + 1] = 1
 
         # 画出旋转后的bbox
@@ -166,9 +206,9 @@ class SiamCARTracker(SiameseTracker):
         score_up = self.coarse_location(hp_cls_up, score_up, scale_score, lrtbs, img)
         # accurate location
         max_r_up, max_c_up = np.unravel_index(score_up.argmax(), score_up.shape)
-        print('max_r_up={} | max_c_up= {}'.format(max_r_up, max_c_up))
-        cv2.circle(img, (max_c_up + 31, max_r_up + 31), 2, (0, 255, 255), 2)  # predicted center in (255,255)
-        cv2.circle(img, (127, 127), 2, (0, 0, 255), 2)  # center of (255,255)
+        # print('max_r_up={} | max_c_up= {}'.format(max_r_up, max_c_up))
+        cv2.circle(img, (max_c_up + 31, max_r_up + 31), 2, (0, 255, 255), 2)
+        cv2.circle(img, (127, 127), 2, (0, 0, 255), 2)
         cv2.imshow('subwindow in track', img)
 
         disp = self.accurate_location(max_r_up, max_c_up)
@@ -199,7 +239,7 @@ class SiamCARTracker(SiameseTracker):
         last_bbox = bbox
         frame++
         """
-        print('--------')
+        # print('--------')
         w_z = self.size[0] + cfg.TRACK.CONTEXT_AMOUNT * np.sum(self.size)
         h_z = self.size[1] + cfg.TRACK.CONTEXT_AMOUNT * np.sum(self.size)
         s_z = np.sqrt(w_z * h_z)
@@ -215,13 +255,19 @@ class SiamCARTracker(SiameseTracker):
         x_crop, x_img = self.get_subwindow(img, self.center_pos,
                                            cfg.TRACK.INSTANCE_SIZE,
                                            round(s_x), self.channel_average)
+
+        crop_box = [self.center_pos[0] - s_x / 2,
+                    self.center_pos[1] - s_x / 2,
+                    s_x,
+                    s_x]
+
         outputs = self.model.track(x_crop)
 
         cls = self._convert_cls(outputs['cls']).squeeze()  # [1, 2, 25, 25]-> [25, 25]
         cen = outputs['cen'].data.cpu().numpy().squeeze()  # [1, 1, 25, 25]-> [25, 25]
         lrtbs = outputs['loc'].data.cpu().numpy().squeeze()  # [1, 4, 25, 25]-> [4, 25, 25]
 
-        print('cls.shape:= {} cen.shape= {} | lrtbs.shape={}'.format(
+        if self.debug:print('cls.shape:= {} cen.shape= {} | lrtbs.shape={}'.format(
             cls.shape,
             cen.shape,
             lrtbs.shape))
@@ -237,6 +283,7 @@ class SiamCARTracker(SiameseTracker):
             hp_cls = p_cls * (1 - hp['window_lr']) + self.window * hp['window_lr']
         else:
             hp_cls = p_cls
+        # print('hp_cls=', hp_cls.shape)
         best_idx = np.argmax(hp_cls)
 
         hp_cls_up = cv2.resize(hp_cls, (upsize, upsize), interpolation=cv2.INTER_CUBIC)
@@ -246,18 +293,17 @@ class SiamCARTracker(SiameseTracker):
         lrtbs_up = cv2.resize(lrtbs, (upsize, upsize), interpolation=cv2.INTER_CUBIC)  # [193, 193, 4]
 
         scale_score = upsize / cfg.TRACK.SCORE_SIZE  # 8.64
-        #  cen_up downweight the scores of bounding boxes
-        #  far from the center of an object
         score_up = cls_up * cen_up
-
-        print('----after scale up to {}'.format(upsize))
-        print('hp_cls_up.shape:= {} cls_up.shape= {} | lrtbs_up.shape={}'.format(
-            hp_cls_up.shape,
-            cls_up.shape,
-            lrtbs_up.shape))
+        if self.debug:
+            print('----after scale up to {}'.format(upsize))
+            print('hp_cls_up.shape:= {} cls_up.shape= {} | lrtbs_up.shape={}'.format(
+                hp_cls_up.shape,
+                cls_up.shape,
+                lrtbs_up.shape))
 
         # get center
         max_r_up, max_c_up, new_cx, new_cy = self.getCenter(hp_cls_up, score_up, scale_score, lrtbs, x_img)
+        # max_r_up, max_c_up, new_cx, new_cy = self.getCenter(score_up, score_up, scale_score, lrtbs, x_img)
 
         # get w h in src img
         ave_w = (lrtbs_up[max_r_up, max_c_up, 0] + lrtbs_up[max_r_up, max_c_up, 2]) / self.scale_z
@@ -272,9 +318,10 @@ class SiamCARTracker(SiameseTracker):
         # hp['lr'] Interpolation learning rate 预测边框的权重或者变化率
         # lr = 可能性*变化惩罚*占比
         lr = penalty * cls_up[max_r_up, max_c_up] * hp['lr']
-        print('cls_up[max_r_up, max_c_up]=', cls_up[max_r_up, max_c_up])
-        print('penalty=', penalty)
-        print('lr=', lr)
+        if self.debug:
+            print('cls_up[max_r_up, max_c_up]=', cls_up[max_r_up, max_c_up])
+            print('penalty=', penalty)
+            print('lr=', lr)
         # 每个新的边框都是上次边框与新预测边框的加权和　lr是预测边框的权重
         new_width = lr * ave_w + (1 - lr) * self.size[0]
         new_height = lr * ave_h + (1 - lr) * self.size[1]
@@ -292,8 +339,39 @@ class SiamCARTracker(SiameseTracker):
                 cy - height / 2,
                 width,
                 height]
+
+        # output mask in image
+        pos = np.unravel_index(best_idx, (cfg.TRACK.SCORE_SIZE, cfg.TRACK.SCORE_SIZE))
+        # print('pos=', pos)
+        delta_x, delta_y = pos[1], pos[0]
+        mask = self.model.mask_refine((delta_y, delta_x)).sigmoid().squeeze()
+        out_size = cfg.TRACK.MASK_OUTPUT_SIZE
+        mask = mask.view(out_size, out_size).cpu().data.numpy()
+
+        s = crop_box[2] / cfg.TRACK.INSTANCE_SIZE
+        base_size = cfg.TRACK.BASE_SIZE
+        stride = cfg.TRACK.STRIDE
+        # 以当前帧最佳anchor所在的滑动窗口中心点为中心的(127,127)对应的原图区域
+        sub_box = [crop_box[0] + (delta_x - base_size / 2) * stride * s,
+                   crop_box[1] + (delta_y - base_size / 2) * stride * s,
+                   s * cfg.TRACK.EXEMPLAR_SIZE,
+                   s * cfg.TRACK.EXEMPLAR_SIZE]
+        s = 1/s
+        im_h, im_w = img.shape[:2]
+        # 以sub_bbox左上角为原点,将整张原图缩小到与mask(127,127)相同倍数的边框
+        # 将(127,127)mask中 crop原图对应缩小的back_bbox，进行同比例放大到原图比例，得到原图尺寸包含背景的mask
+        back_box = [-sub_box[0] * s, -sub_box[1] * s, im_w * s, im_h * s]
+        mask_in_img = self._crop_back(mask, back_box, (im_w, im_h))
+        polygon = self._mask_post_processing(mask_in_img)
+        polygon = polygon.flatten().tolist()
+
+        mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+        if self.debug:cv2.imshow('mask', mask)
+
         return {
             'bbox': bbox,
+            'mask': mask_in_img,
+            'polygon': polygon,
         }
 
     def show_x_z_InputRegion(self, img, s_z, s_x=None):
@@ -327,7 +405,7 @@ if __name__ == '__main__':
     model = ModelBuilder()
     model = load_pretrain(model, snapshot).cuda().eval()
     # build tracker
-    tracker = SiamCARTracker(model, cfg.TRACK)
+    tracker = SiamCARMaskTracker(model, cfg.TRACK)
 
     dataset = DatasetFactory.create_dataset(name='OTB50',
                                             dataset_root=data_root,

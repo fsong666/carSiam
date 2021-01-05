@@ -23,7 +23,8 @@ from carsot.utils.average_meter import AverageMeter
 from carsot.utils.misc import describe, commit
 from carsot.models.model_builder import ModelBuilder
 
-from carsot.datasets.dataset import TrkDataset
+# from carsot.datasets.dataset import TrkDataset
+from carsot.datasets.dataset_mask import TrkDataset
 from carsot.core.config import cfg
 
 
@@ -35,6 +36,9 @@ parser.add_argument('--seed', type=int, default=123456,
                     help='random seed')
 parser.add_argument('--local_rank', type=int, default=0,
                     help='compulsory for pytorch launcer')
+parser.add_argument('--pretrained', dest='pretrained', default='',
+                    help='use pre-trained model')
+
 args = parser.parse_args()
 
 
@@ -65,9 +69,21 @@ def build_data_loader():
     return train_loader
 
 
+def set_model_no_grad(model):
+    layer = ['backbone', 'neck', 'down', 'car_head']
+    for m in layer:
+        for param in getattr(model, m).parameters():
+            param.requires_grad = False
+
+
 def build_opt_lr(model, current_epoch=0):
+    """
+    For the first 10 epochs parameters of ResNet50 are frozen,
+    train model.neck, model.car_head and down.parameters.
+    For the last 10 epochs ['layer2','layer3','layer4'] of ResNet50 are unfrozen.
+    """
     if current_epoch >= cfg.BACKBONE.TRAIN_EPOCH:
-        for layer in cfg.BACKBONE.TRAIN_LAYERS:
+        for layer in cfg.BACKBONE.TRAIN_LAYERS:  # ['layer2','layer3','layer4']
             for param in getattr(model.backbone, layer).parameters():
                 param.requires_grad = True
             for m in getattr(model.backbone, layer).modules():
@@ -75,25 +91,39 @@ def build_opt_lr(model, current_epoch=0):
                     m.train()
     else:
         for param in model.backbone.parameters():
-            param.requires_grad = False
+            param.requires_grad = False   # frozen
         for m in model.backbone.modules():
             if isinstance(m, nn.BatchNorm2d):
                 m.eval()
+    if cfg.REFINE.REFINE:
+        set_model_no_grad(model)
 
     trainable_params = []
-    trainable_params += [{'params': filter(lambda x: x.requires_grad,
-                                           model.backbone.parameters()),
-                          'lr': cfg.BACKBONE.LAYERS_LR * cfg.TRAIN.BASE_LR}]
+    if not cfg.REFINE.REFINE:
+        logger.info("added backbone, car_head, neck, down params")
+        trainable_params += [{'params': filter(lambda x: x.requires_grad,
+                                               model.backbone.parameters()),
+                              'lr': cfg.BACKBONE.LAYERS_LR * cfg.TRAIN.BASE_LR}]
+        print('backbone.trainable_params=', len(list(trainable_params[0]['params'])))
+        if cfg.ADJUST.ADJUST:
+            trainable_params += [{'params': model.neck.parameters(),
+                                  'lr': cfg.TRAIN.BASE_LR}]
 
-    if cfg.ADJUST.ADJUST:
-        trainable_params += [{'params': model.neck.parameters(),
+        trainable_params += [{'params': model.car_head.parameters(),
                               'lr': cfg.TRAIN.BASE_LR}]
 
-    trainable_params += [{'params': model.car_head.parameters(),
+        trainable_params += [{'params': model.down.parameters(),
                           'lr': cfg.TRAIN.BASE_LR}]
 
-    trainable_params += [{'params': model.down.parameters(),
-                          'lr': cfg.TRAIN.BASE_LR}]
+    if cfg.MASK.MASK:
+        print('added mask_head params')
+        trainable_params += [{'params': model.mask_head.parameters(),
+                              'lr': cfg.TRAIN.BASE_LR}]
+        if cfg.REFINE.REFINE:
+            print('added refine_head params')
+            trainable_params += [{'params': model.refine_head.parameters(),
+                                  'lr': cfg.TRAIN.BASE_LR}]
+
     optimizer = torch.optim.SGD(trainable_params,
                                 momentum=cfg.TRAIN.MOMENTUM,
                                 weight_decay=cfg.TRAIN.WEIGHT_DECAY)
@@ -141,6 +171,13 @@ def log_grads(model, tb_writer, tb_index):
 
 
 def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
+    if cfg.REFINE.REFINE:
+        model.module.backbone.eval()
+        model.module.car_head.eval()
+        model.module.neck.eval()
+        model.module.down.eval()
+        logger.info("set back_bone, car_head, neck, donwn as eval")
+
     cur_lr = lr_scheduler.get_cur_lr()
     rank = get_rank()
 
@@ -196,14 +233,16 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
         if rank == 0:
             tb_writer.add_scalar('time/data', data_time, tb_idx)
 
-        if idx == 0:
+        if idx == 0 and cfg.TRAIN.DEBUG:
+            logger.warning('input data')
             logger.warning('data[template].size:{}'.format(data['template'].size()))
             logger.warning('data[search].size:{}'.format(data['search'].size()))
             logger.warning('data[label_cls].size:{}'.format(data['label_cls'].size()))
             logger.warning('data[bbox].size:{}'.format(data['bbox'].size()))
 
         outputs = model(data)
-        loss = outputs['total_loss'].mean()  # outputs['total_loss'] 是个标量无需再mean
+        # loss = outputs['total_loss'].mean()  # outputs['total_loss'] 是个标量无需再mean
+        loss = outputs['total_loss']#.mean()  # outputs['total_loss'] 是个标量无需再mean
 
         if is_valid_number(loss.data.item()):
             optimizer.zero_grad()
@@ -253,7 +292,7 @@ def main():
     # rank = 0
     logger.info("init done")
 
-    # load cfg
+    # load cfg update cfg 合并后的core::cfg在其他源文件也是最新的可被调用
     cfg.merge_from_file(args.cfg)
     if rank == 0:
         if not os.path.exists(cfg.TRAIN.LOG_DIR):
@@ -301,8 +340,9 @@ def main():
         model, optimizer, cfg.TRAIN.START_EPOCH = \
             restore_from(model, optimizer, cfg.TRAIN.RESUME)
     # load pretrain
-    elif cfg.TRAIN.PRETRAINED:
-        load_pretrain(model, cfg.TRAIN.PRETRAINED)
+    # elif cfg.TRAIN.PRETRAINED:
+    elif args.pretrained:
+        load_pretrain(model, args.pretrained)
     dist_model = nn.DataParallel(model)
 
     logger.info(lr_scheduler)

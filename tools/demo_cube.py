@@ -16,7 +16,7 @@ from carsot.core.config import cfg
 from carsot.models.model_builder import ModelBuilder
 from carsot.tracker.siamcar_tracker import SiamCARTracker
 from carsot.utils.model_load import load_pretrain
-from ods.cubeToPanoram import ToPanoram
+from ods.cubeToPanorama import ToPanorama
 torch.set_num_threads(1)
 
 parser = argparse.ArgumentParser(description='SiamCAR demo')
@@ -90,7 +90,7 @@ def main():
                 exit()
             tracker.init(frame, init_rect)
             first_frame = False
-            panoram = ToPanoram(frame, ods)
+            panoram = ToPanorama(frame, ods)
         else:
             outputs = tracker.track(frame, hp)
             bbox = list(map(int, outputs['bbox']))

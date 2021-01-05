@@ -1,7 +1,7 @@
 import torch.nn as nn
 from torchsummary import summary
 import torch
-
+from carsot.core.config import cfg
 
 class AdjustLayer(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -13,22 +13,29 @@ class AdjustLayer(nn.Module):
 
     def forward(self, x):
         x = self.downsample(x)
-        if x.size(3) < 20:  # height < 20  template 15 < 20
-            l = 4
-            r = l + 7
-            x = x[:, :, l:r, l:r]  # x[:, :, 4:11, 4:11] 7*7
+        if cfg.REFINE.REFINE:
+            # SiamMask
+            if x.size(3) < 20:    # 15 < 20 ->(7,7)
+                l = 4
+                r = -4
+                x = x[:, :, l:r, l:r]   # len([4:-4]) 不一定等于 7
+        else:
+            if x.size(3) < 20:  # height < 20  template 15 < 20
+                l = 4
+                r = l + 7
+                x = x[:, :, l:r, l:r]  # x[:, :, 4:11, 4:11] 7*7
         return x
 
 
 class AdjustAllLayer(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(AdjustAllLayer, self).__init__()
-        self.num = len(out_channels)
+        self.num = len(out_channels)  # len([256, 256, 256]) = 3
         if self.num == 1:
             self.downsample = AdjustLayer(in_channels[0], out_channels[0])
         else:
             for i in range(self.num):
-                self.add_module('downsample'+str(i+2),
+                self.add_module('downsample'+str(i+2),   # layer2, 3, 4
                                 AdjustLayer(in_channels[i], out_channels[i]))
 
     def forward(self, features):

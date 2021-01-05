@@ -7,19 +7,19 @@ class CARHead(torch.nn.Module):
     def __init__(self, cfg, in_channels):
         """
         Arguments:
-            in_channels (int): number of channels of the input feature
+            in_channels (int): number of channels of the input feature  256
         """
         super(CARHead, self).__init__()
         # TODO: Implement the sigmoid version first.
-        num_classes = cfg.TRAIN.NUM_CLASSES  #2
+        num_classes = cfg.TRAIN.NUM_CLASSES  # 2
 
         cls_tower = []
         bbox_tower = []
         for i in range(cfg.TRAIN.NUM_CONVS):  # 4
             cls_tower.append(
                 nn.Conv2d(
-                    in_channels,
-                    in_channels,
+                    in_channels,  # 256
+                    in_channels,  # 256
                     kernel_size=3,
                     stride=1,
                     padding=1

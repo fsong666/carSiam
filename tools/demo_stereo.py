@@ -1,17 +1,13 @@
-"""
-直接在ods视频选出template跟踪，将ods预测出的bbox中心作为viewer
-映射到cube
-"""
-
 import os
 import sys
+
 sys.path.append('../')
 
 import argparse
 import cv2
 import torch
 from glob import glob
-from os.path import join
+from os.path import join, isdir
 from os import listdir
 
 from carsot.core.config import cfg
@@ -19,6 +15,10 @@ from carsot.models.model_builder import ModelBuilder
 from carsot.tracker.siamcar_tracker import SiamCARTracker
 from carsot.utils.model_load import load_pretrain
 from ods.center_cube import ViewerCUbe
+from carsot.utils.log_helper import init_log
+import logging
+logger = logging.getLogger('global')
+
 torch.set_num_threads(1)
 
 parser = argparse.ArgumentParser(description='SiamCAR demo')
@@ -43,7 +43,7 @@ def get_frames(video_name):
             else:
                 break
     elif video_name.endswith('avi') or \
-        video_name.endswith('mp4'):
+            video_name.endswith('mp4'):
         cap = cv2.VideoCapture(args.video_name)
         while True:
             ret, frame = cap.read()
@@ -66,6 +66,7 @@ def main():
 
     # load config
     cfg.merge_from_file(args.config)
+    init_log('global', logging.INFO)
     cfg.CUDA = torch.cuda.is_available()
     device = torch.device('cuda' if cfg.CUDA else 'cpu')
 
@@ -80,12 +81,13 @@ def main():
 
     hp = {'lr': 0.3, 'penalty_k': 0.04, 'window_lr': 0.4}
 
-    # panorama = None
     toCube = None
-    init_rect = None
+    cube = None
+    init_rect_cube = None
+    viewer = None
     cube_name = 'viewer cube'
     depth = join(args.depth_img, args.video_name.split('.')[0], 'depth', 'left')
-    print(depth)
+    assert isdir(depth)
 
     first_frame = False
     if args.video_name:
@@ -95,7 +97,6 @@ def main():
     cv2.namedWindow(video_name, cv2.WND_PROP_FULLSCREEN)
     for idx, (frame, depth) in enumerate(zip(get_frames(args.video_name), get_frames(depth))):
         if idx == 0:
-            # toCube = ToCUbe(frame.shape)
             toCube = ViewerCUbe(frame.shape)
 
         if not first_frame:
@@ -103,61 +104,42 @@ def main():
             cv2.imshow(video_name, frame)
             print('Press y button to start select ROI in cube map, Esc to quit this process'
                   '\nother button to next frame!')
-            k = cv2.waitKey(0)
+            k = cv2.waitKey(50)
             if k == 27:
                 return
             if k != ord('y'):
                 continue
             try:
                 init_rect = cv2.selectROI(video_name, frame, False, False)
-                print(init_rect)
+                print(init_rect)  # init first viewer
                 viewer = [init_rect[0] + init_rect[2] / 2., init_rect[1] + init_rect[3] / 2.]
                 print(viewer)
-                # cube = toCube.reversToCube(frame, viewer)
-                # cv2.imshow(cube_name, cube)
-                # init_rect_cube = cv2.selectROI(cube_name, cube, False, False)
+                cube = toCube.reversToCube(frame, viewer)
+                cv2.imshow(cube_name, cube)
+                init_rect_cube = cv2.selectROI(cube_name, cube, False, False)
             except:
                 exit()
-            tracker.init(frame, init_rect)
+            tracker.init(cube, init_rect_cube)  # init template und first center of bbox
             first_frame = True
         else:
-            outputs = tracker.track(frame, hp)
+            cube = toCube.reversToCube(frame, viewer)
+            outputs = tracker.track(cube, hp)
             bbox = list(map(int, outputs['bbox']))
-            viewer = [bbox[0] + bbox[2] / 2., bbox[1] + bbox[3] / 2.]
-            viewer_left = [round(viewer[0]), round(viewer[1])]
-
-            cv2.rectangle(frame,  # left
+            cv2.rectangle(cube,
                           (bbox[0], bbox[1]),
-                          (bbox[0]+bbox[2], bbox[1]+bbox[3]),
-                          (255, 0, 0), 2)
-            cv2.line(frame, (viewer_left[0], 0), (viewer_left[0], frame.shape[0] - 1), (255, 0, 0), 1)
-            # cv2.rectangle(depth,
-            #               (bbox[0], bbox[1]),
-            #               (bbox[0]+bbox[2], bbox[1]+bbox[3]),
-            #               (0, 255, 0), 2)
+                          (bbox[0] + bbox[2], bbox[1] + bbox[3]),
+                          (0, 255, 0), 2)
+            predict_ptInCube = [bbox[0] + bbox[2] / 2., bbox[1] + bbox[3] / 2.]
 
-            depth_value = depth[viewer_left[1], viewer_left[0]][0]
-            if 0 < depth_value < 100:
-                baseline = 175.0
-                cx_r = round(viewer[0] - baseline / depth_value)
-                bbox[0] = cx_r - bbox[2] // 2
-            bbox[1] += (frame.shape[0] // 2)
-            viewer_right = [round(bbox[0] + bbox[2] / 2.), round(bbox[1] + bbox[3] / 2.)]
-
-            cv2.rectangle(frame,  # right
-                          (bbox[0], bbox[1]),
-                          (bbox[0]+bbox[2], bbox[1]+bbox[3]),
-                          (0, 0, 255), 2)
-            cv2.line(frame, (viewer_right[0], 0), (viewer_right[0], frame.shape[0] - 1), (0, 0, 255), 1)
-            print('{}:{} -- {} | {}'.format(depth_value, viewer_left, viewer_right, viewer_left[0] - viewer_right[0]))
-
+            toCube.show_bboxInODS(viewer, bbox, frame, depth)
             cv2.putText(frame, str(idx), (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
             cv2.imshow(video_name, frame)
-
-            cube = toCube.reversToCube(frame, viewer)
             # cv2.imshow('depth', depth)
             cv2.imshow(cube_name, cube)
             cv2.waitKey(10)
+
+            # update viewer, viewer=center of predicted bbox in current cube und frame
+            viewer = toCube.get_pointInPanorama(viewer, predict_ptInCube)
 
 
 if __name__ == '__main__':

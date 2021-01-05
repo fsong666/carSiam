@@ -3,10 +3,10 @@ META_ARC: "siamcar_r50"
 BACKBONE:
     TYPE: "resnet50"
     KWARGS:
-        used_layers: [2, 3, 4]
+        used_layers: [0, 1, 2, 3, 4]
     PRETRAINED: ''
     TRAIN_LAYERS: ['layer2','layer3','layer4']
-    TRAIN_EPOCH: 10
+    TRAIN_EPOCH: 5 #10
     LAYERS_LR: 0.1
 
 ADJUST:
@@ -17,7 +17,7 @@ ADJUST:
         out_channels: [256, 256, 256]
 
 MASK:
-    MASK: False
+    MASK: True
     TYPE: 'MaskCorr'
     KWARGS:
         in_channels: 256
@@ -25,7 +25,7 @@ MASK:
         out_channels: 3969  # 63**2
 
 REFINE:
-    REFINE: False # tracking true
+    REFINE: True # tracking true
     TYPE: 'Refine'
 
 TRACK:
@@ -37,13 +37,15 @@ TRACK:
     INSTANCE_SIZE: 255
     CONTEXT_AMOUNT: 0.5
     STRIDE: 8
+    MASK_THERSHOLD: 0.15
 #    hanming: False
+
 
 TRAIN:
     DEBUG: False
     EPOCH: 20
     START_EPOCH: 0
-    BATCH_SIZE: 1 #80 # 32
+    BATCH_SIZE: 2 #80 # 32
     BASE_LR: 0.005
     CLS_WEIGHT: 1.0
     LOC_WEIGHT: 3.0
@@ -53,7 +55,10 @@ TRAIN:
     NUM_CLASSES: 2
     NUM_CONVS: 4
     PRIOR_PROB: 0.01
-    OUTPUT_SIZE: 25 # 31
+    SNAPSHOT_DIR: './snapshot_MaskRefine'
+    SEARCH_SIZE: 143
+    OUTPUT_SIZE: 3
+    BASE_SIZE: 0
 
     LR:
         TYPE: 'log'
@@ -71,10 +76,6 @@ TRAIN:
 DATASET:
     NAMES:
     - 'COCO'
-#    - 'ODS'
-#    - 'DET'
-#    - 'VID'
-#    - 'YOUTUBEBB'
 
     VIDEOS_PER_EPOCH: 1000
 
@@ -84,9 +85,9 @@ DATASET:
         BLUR: 0.0
         FLIP: 0.0
         COLOR: 1.0
-
+    # train
     SEARCH:
-        SHIFT: 64
+        SHIFT: 8
         SCALE: 0.18
         BLUR: 0.2
         FLIP: 0.0

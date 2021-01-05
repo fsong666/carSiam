@@ -6,10 +6,12 @@ import argparse
 import cv2
 import torch
 from glob import glob
+import numpy as np
+import json
 
 from carsot.core.config import cfg
 from carsot.models.model_builder import ModelBuilder
-from carsot.tracker.siamcar_tracker import SiamCARTracker
+from carsot.tracker.siamcar_mask_tracker import SiamCARMaskTracker
 from carsot.utils.model_load import load_pretrain
 from carsot.utils.misc import describe
 from carsot.utils.log_helper import init_log
@@ -54,11 +56,15 @@ def get_frames(video_name):
             yield frame
 
 
+def set_model_no_grad(model):
+    for param in model.parameters():
+        param.requires_grad = False
+
+
 def main():
-    cfg.merge_from_file(args.config)
-    init_log('global', logging.INFO)
     # load config
     cfg.merge_from_file(args.config)
+    init_log('global', logging.INFO)
     cfg.CUDA = torch.cuda.is_available()
     device = torch.device('cuda' if cfg.CUDA else 'cpu')
 
@@ -67,10 +73,12 @@ def main():
 
     # load model
     model = load_pretrain(model, args.snapshot).eval().to(device)
-    logger.info("model\n{}".format(describe(model)))
+    set_model_no_grad(model)
+    logger.info("config \n{}".format(json.dumps(cfg, indent=4)))
+    # logger.info("model\n{}".format(describe(model)))
 
     # build tracker
-    tracker = SiamCARTracker(model, cfg.TRACK)
+    tracker = SiamCARMaskTracker(model, cfg.TRACK)
 
     hp = {'lr': 0.3, 'penalty_k': 0.04, 'window_lr': 0.4}
 
@@ -90,13 +98,29 @@ def main():
             first_frame = False
         else:
             outputs = tracker.track(frame, hp)
-            bbox = list(map(int, outputs['bbox']))
-            cv2.rectangle(frame, (bbox[0], bbox[1]),
-                          (bbox[0]+bbox[2], bbox[1]+bbox[3]),
-                          (0, 255, 0), 2)
+            if 'polygon' in outputs:
+                # polygon = np.array(outputs['polygon']).astype(np.int32)
+                # cv2.polylines(frame, [polygon.reshape((-1, 1, 2))],
+                #               True, (0, 255, 0), 3)
+                # mask 是浮点数，mask=mask > THERSHOLD, 得到1,0矩阵
+                mask = ((outputs['mask'] > cfg.TRACK.MASK_THERSHOLD) * 255)
+                mask = mask.astype(np.uint8)
+                mask = np.stack([mask, mask*255, mask]).transpose(1, 2, 0)
+                frame = cv2.addWeighted(frame, 0.77, mask, 0.23, -1)
+
+                bbox = list(map(int, outputs['bbox']))
+                cv2.rectangle(frame, (bbox[0], bbox[1]),
+                              (bbox[0] + bbox[2], bbox[1] + bbox[3]),
+                              (0, 255, 255), 2)
+            else:
+                bbox = list(map(int, outputs['bbox']))
+                cv2.rectangle(frame, (bbox[0], bbox[1]),
+                              (bbox[0]+bbox[2], bbox[1]+bbox[3]),
+                              (0, 255, 0), 2)
+
             cv2.putText(frame, str(idx), (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
             cv2.imshow(video_name, frame)
-            cv2.waitKey(50)
+            cv2.waitKey(10)
 
 
 if __name__ == '__main__':

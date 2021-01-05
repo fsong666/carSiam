@@ -67,7 +67,7 @@ class Augmentation:
         image = cv2.cvtColor(grayed, cv2.COLOR_GRAY2BGR)
         return image
 
-    def _shift_scale_aug(self, image, bbox, crop_bbox, size):
+    def _shift_scale_aug(self, image, bbox, crop_bbox, size, mask=None, debug=False):
         im_h, im_w = image.shape[:2]
 
         # adjust crop bounding box
@@ -104,8 +104,13 @@ class Augmentation:
             bbox = Corner(bbox.x1 / scale_x, bbox.y1 / scale_y,
                           bbox.x2 / scale_x, bbox.y2 / scale_y)
 
+        if debug:
+            draw(image, crop_bbox, (0, 255, 255))
+
         image = self._crop_roi(image, crop_bbox, size)
-        return image, bbox
+        if mask is not None:
+            mask = self._crop_roi(mask, crop_bbox, size) # 保证输出尺寸为127or255
+        return image, bbox, mask
 
     def _flip_aug(self, image, bbox):
         image = cv2.flip(image, 1)
@@ -114,23 +119,24 @@ class Augmentation:
                       width - 1 - bbox.x1, bbox.y2)
         return image, bbox
 
-    def __call__(self, image, bbox, size, gray=False):
+    def __call__(self, image, bbox, size, gray=False,  mask=None, debug=False):
         shape = image.shape
         crop_bbox = center2corner(Center(shape[0]//2, shape[1]//2,
                                          size-1, size-1))
 
-        # rectx = np.trunc(np.array(bbox)).astype(int)
-        # re = cv2.rectangle(image, (rectx[0], rectx[1]), (rectx[2], rectx[3]), (0, 255, 0), thickness=2)
+        if debug:
+            color = (255, 0, 0) if size == 127 else (0, 0, 255)
+            draw(image, crop_bbox, color)
 
         # gray augmentation
         if gray:
             image = self._gray_aug(image)
 
         # shift scale augmentation
-        image, bbox = self._shift_scale_aug(image, bbox, crop_bbox, size)
+        image, bbox, mask = self._shift_scale_aug(image, bbox, crop_bbox, size, mask=mask, debug=debug)
 
         # color augmentation
-        if self.color > np.random.random():
+        if self.color > np.random.random() and not debug:
             image = self._color_aug(image)
 
         # blur augmentation
@@ -140,4 +146,13 @@ class Augmentation:
         # flip augmentation
         if self.flip and self.flip > np.random.random():
             image, bbox = self._flip_aug(image, bbox)
-        return image, bbox
+        if mask is None:
+            return image, bbox
+        else:
+            return image, bbox, mask
+
+
+def draw(image, box, color=(0, 255, 0)):
+    if not box: return
+    x1, y1, x2, y2 = map(lambda x: int(round(x)), box)
+    cv2.rectangle(image, (x1, y1), (x2, y2), color, thickness=2)

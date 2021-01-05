@@ -39,6 +39,9 @@ torch.set_num_threads(1)
 
 
 def main():
+    """
+    track无需augmentation, train时才需aug
+    """
     # load config
     cfg.merge_from_file(args.config)
 
@@ -77,6 +80,7 @@ def main():
             lost_number = 0
             toc = 0
             pred_bboxes = []
+            # video.__iter__ yield cv2.imread(self.img_names[i]), self.gt_traj[i]
             for idx, (img, gt_bbox) in enumerate(video):
                 if len(gt_bbox) == 4:
                     gt_bbox = [gt_bbox[0], gt_bbox[1],
@@ -172,12 +176,12 @@ def main():
                         gt_bbox = list(map(int, gt_bbox))
                         pred_bbox = list(map(int, pred_bbox))
                         cv2.rectangle(img, (gt_bbox[0], gt_bbox[1]),
-                                      (gt_bbox[0] + gt_bbox[2], gt_bbox[1] + gt_bbox[3]), (0, 255, 0), 3)
+                                      (gt_bbox[0] + gt_bbox[2], gt_bbox[1] + gt_bbox[3]), (0, 255, 0), 2)
                         cv2.rectangle(img, (pred_bbox[0], pred_bbox[1]),
-                                      (pred_bbox[0] + pred_bbox[2], pred_bbox[1] + pred_bbox[3]), (0, 255, 255), 3)
+                                      (pred_bbox[0] + pred_bbox[2], pred_bbox[1] + pred_bbox[3]), (0, 255, 255), 2)
                         cv2.putText(img, str(idx), (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
                         cv2.imshow(video.name, img)
-                        cv2.waitKey(200)
+                        cv2.waitKey(100)
             toc /= cv2.getTickFrequency()
             # save results
             model_path = os.path.join('results', args.dataset, model_name)

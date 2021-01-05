@@ -13,11 +13,16 @@ __C.CUDA = True
 # ------------------------------------------------------------------------ #
 __C.TRAIN = CN()
 
+__C.TRAIN.DEBUG = False
+
 # Anchor Target
 __C.TRAIN.EXEMPLAR_SIZE = 127
 
 __C.TRAIN.SEARCH_SIZE = 255
 
+__C.TRAIN.BASE_SIZE = 8
+
+# 模型最后输出的shape 25
 __C.TRAIN.OUTPUT_SIZE = 25
 
 __C.TRAIN.RESUME = ''
@@ -45,6 +50,8 @@ __C.TRAIN.CLS_WEIGHT = 1.0
 __C.TRAIN.LOC_WEIGHT = 2.0
 
 __C.TRAIN.CEN_WEIGHT = 1.0
+
+__C.TRAIN.MASK_WEIGHT = 1.0
 
 __C.TRAIN.PRINT_FREQ = 20
 
@@ -114,7 +121,7 @@ __C.DATASET.SEARCH.FLIP = 0.0
 __C.DATASET.SEARCH.COLOR = 1.0
 
 # for detail discussion
-__C.DATASET.NEG = 0.0
+__C.DATASET.NEG = 0.2
 
 __C.DATASET.GRAY = 0.0
 
@@ -235,7 +242,6 @@ __C.TRACK.CONTEXT_AMOUNT = 0.5
 
 __C.TRACK.STRIDE = 8
 
-
 __C.TRACK.SCORE_SIZE = 25
 
 __C.TRACK.hanming = True
@@ -248,9 +254,14 @@ __C.TRACK.REGION_S = 0.1
 
 __C.TRACK.REGION_L = 0.44
 
+__C.TRACK.MASK_OUTPUT_SIZE = 127
 
+# Mask threshold
+__C.TRACK.MASK_THERSHOLD = 0.30
+
+__C.TRACK.BASE_SIZE = 8
 # ------------------------------------------------------------------------ #
-# HP_SEARCH parameters
+# HP_SEARCH parameters  'lr', 'penalty_k', 'window_lr'
 # ------------------------------------------------------------------------ #
 __C.HP_SEARCH = CN()
 
@@ -264,7 +275,7 @@ __C.HP_SEARCH.LaSOT = [0.33, 0.04, 0.4]
 
 __C.HP_SEARCH.VOT2018 = [0.15, 0.1, 0.4]
 
-__C.HP_SEARCH.ODS = [0.15, 0.1, 0.4]
+__C.HP_SEARCH.ODS = [0.2, 0.1, 0.4]
 
 # ------------------------------------------------------------------------ #
 # mask options

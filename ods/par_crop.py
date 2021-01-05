@@ -94,6 +94,7 @@ def main(instanc_size=511, num_threads=6):
     if not isdir(crop_path): mkdir(crop_path)
 
     videos = sorted(listdir(ann_base_path))
+    print(videos)
     n_videos = len(videos)
     with futures.ProcessPoolExecutor(max_workers=num_threads) as executor:
         fs = [executor.submit(crop_video, video, crop_path, instanc_size) for video in videos]

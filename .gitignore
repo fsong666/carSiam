@@ -20,9 +20,9 @@
 **/annotations
 testing_dataset/*
 results
-snapshot
 pretrained_models
-logs
+snapshot*
+logs*
 
 
 # Byte-compiled / optimized / DLL files

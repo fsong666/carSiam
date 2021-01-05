@@ -111,7 +111,7 @@ def get_axis_aligned_bbox(region):
     """ convert region to (cx, cy, w, h) that represent by axis aligned box
     """
     nv = region.size
-    if nv == 8:  # VOT BBOX有　8个数据，四个顶点的坐标
+    if nv == 8:  # VOT BBOX有　8个数据，旋转矩形的四个顶点坐标
         cx = np.mean(region[0::2])
         cy = np.mean(region[1::2])
         x1 = min(region[0::2])

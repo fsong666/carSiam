@@ -59,7 +59,7 @@ def undistort(src, r):
     v[v > (src_h - 1)] = src_h - 1
 
     # 插值
-    dst[:, :, :] = src[v.astype(int), u.astype(int)]
+    dst[:, :, :] = src[v.astype(int), u.astype(int)]   
     return dst
 
 

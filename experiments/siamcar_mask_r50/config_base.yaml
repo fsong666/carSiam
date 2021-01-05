@@ -17,7 +17,7 @@ ADJUST:
         out_channels: [256, 256, 256]
 
 MASK:
-    MASK: False
+    MASK: True
     TYPE: 'MaskCorr'
     KWARGS:
         in_channels: 256
@@ -37,7 +37,6 @@ TRACK:
     INSTANCE_SIZE: 255
     CONTEXT_AMOUNT: 0.5
     STRIDE: 8
-#    hanming: False
 
 TRAIN:
     DEBUG: False
@@ -71,7 +70,7 @@ TRAIN:
 DATASET:
     NAMES:
     - 'COCO'
-#    - 'ODS'
+    - 'ODS'
 #    - 'DET'
 #    - 'VID'
 #    - 'YOUTUBEBB'

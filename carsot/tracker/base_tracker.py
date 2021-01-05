@@ -25,7 +25,7 @@ class BaseTracker(object):
         """
         raise NotImplementedError
 
-    def track(self, img):
+    def track(self, img, hp):
         """
         args:
             img(np.ndarray): BGR image
@@ -56,7 +56,7 @@ class SiameseTracker(BaseTracker):
         context_xmax = context_xmin + sz - 1
         context_ymin = np.floor(pos[1] - c + 0.5)
         context_ymax = context_ymin + sz - 1
-        #
+
         # print('xmin={} xmax={} ymin={} ymax{}'.format(context_xmin, context_xmax,
         #                                            context_ymin, context_ymax))
         # 当框超出输入的图像时, 会进行填充扩展
@@ -64,9 +64,6 @@ class SiameseTracker(BaseTracker):
         top_pad = int(max(0., -context_ymin))
         right_pad = int(max(0., context_xmax - im_sz[1] + 1))
         bottom_pad = int(max(0., context_ymax - im_sz[0] + 1))
-
-        # print('left_pad={} top_pad ={} right_pad={} bottom_pad={}'.format(left_pad, top_pad,
-        #                                               right_pad, bottom_pad))
 
         context_xmin = context_xmin + left_pad
         context_xmax = context_xmax + left_pad
@@ -88,13 +85,17 @@ class SiameseTracker(BaseTracker):
                 te_im[:, c + left_pad:, :] = avg_chans
             im_patch = te_im[int(context_ymin):int(context_ymax + 1),
                        int(context_xmin):int(context_xmax + 1), :]
+            # print('left_pad={} top_pad ={} right_pad={} bottom_pad={}'.format(left_pad, top_pad,
+            #                                               right_pad, bottom_pad))
+            # cv2.waitKey(0)
         else:
             im_patch = im[int(context_ymin):int(context_ymax + 1),
                        int(context_xmin):int(context_xmax + 1), :]
 
         if not np.array_equal(model_sz, original_sz):
             im_patch = cv2.resize(im_patch, (model_sz, model_sz))
-        # cv2.imshow('subwindow', im_patch)
+        img = im_patch.copy()
+        # cv2.imshow('subwindow', img)
 
         im_patch = im_patch.transpose(2, 0, 1)
         im_patch = im_patch[np.newaxis, :, :, :]
@@ -102,4 +103,4 @@ class SiameseTracker(BaseTracker):
         im_patch = torch.from_numpy(im_patch)
         if cfg.CUDA:
             im_patch = im_patch.cuda()
-        return im_patch
+        return im_patch, img
