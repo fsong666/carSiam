@@ -12,6 +12,7 @@ sys.path.append('../')
 
 from carsot.core.config import cfg
 from carsot.tracker.siamcar_tracker import SiamCARTracker
+from carsot.tracker.siamcar_mask_tracker import SiamCARMaskTracker
 from carsot.utils.bbox import get_axis_aligned_bbox
 from carsot.utils.model_load import load_pretrain
 from carsot.models.model_builder import ModelBuilder
@@ -59,14 +60,17 @@ def main():
     model = load_pretrain(model, args.snapshot).cuda().eval()
 
     # build tracker
-    tracker = SiamCARTracker(model, cfg.TRACK)
+    # tracker = SiamCARTracker(model, cfg.TRACK)
+    tracker = SiamCARMaskTracker(model, cfg.TRACK)
 
     # create dataset
     dataset = DatasetFactory.create_dataset(name=args.dataset,
                                             dataset_root=dataset_root,
                                             load_img=False)
 
-    model_name = args.snapshot.split('/')[-1] + str(hp['lr']) + '_' + str(hp['penalty_k']) + '_' + str(hp['window_lr'])
+    # model_name = args.snapshot.split('/')[-1] + str(hp['lr']) + '_' + str(hp['penalty_k']) + '_' + str(hp['window_lr'])
+    model_name = args.snapshot.split('/')[-1].split('.')[0]
+    print(model_name)
 
     total_lost = 0
     if args.dataset in ['VOT2016', 'VOT2018', 'VOT2019']:

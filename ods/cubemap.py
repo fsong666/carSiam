@@ -84,8 +84,9 @@ def convertBack(imgIn, imgOut):
 
 if __name__ == '__main__':
     imgIn = Image.open(sys.argv[1])
+    imgIn.show()
     inSize = imgIn.size
     imgOut = Image.new("RGB", (inSize[0], int(inSize[0] * 3 / 4)), "black")
     convertBack(imgIn, imgOut)
-    imgOut.save(sys.argv[1].split('.')[0] + "_test.png")
+    # imgOut.save(sys.argv[1].split('.')[0] + "_test.png")
     imgOut.show()

@@ -28,6 +28,7 @@ def select_cross_entropy_loss(pred, label):
     """
     pred[:,0] = 0 = 背景
     pred[:,1] = 1 = 物体
+    正反两类的损失都算了
     """
     # [bs, 1, 25, 25, 2] -> [bs*625, 2]
     pred = pred.view(-1, 2)
@@ -94,8 +95,11 @@ class SiamCARLossComputation(object):
 
     def __init__(self, cfg):
         self.box_reg_loss_func = IOULoss()
-        # self.centerness_loss_func = nn.BCEWithLogitsLoss()
-        self.centerness_loss_func = nn.MSELoss()    # target center-ness ranges from 0 to 1
+        #  If (x; y) is located in the background, the
+        # value of C(i; j) is set to 0.
+        self.centerness_loss_func = nn.BCEWithLogitsLoss()
+        # targets shape [pos] 是[0, 1]的浮点值,所以用回归的loss MSELoss
+        # self.centerness_loss_func = nn.MSELoss()    # target center-ness ranges from 0 to 1
         self.cfg = cfg
 
     def prepare_targets(self, points, labels, gt_bbox):
@@ -229,7 +233,7 @@ class SiamCARLossComputation(object):
             mask_loss = select_mask_logistic_loss(pred_mask, label_mask, mask_weight)
 
         if pos_inds.numel() > 0:
-            # targets shape [pos] 是[0, 1]的浮点值,所以用回归的loss MSELoss
+
             centerness_targets = self.compute_centerness_targets(reg_targets_flatten)
 
             reg_loss = self.box_reg_loss_func(

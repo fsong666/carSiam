@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import math
 from carsot.utils.xcorr import xcorr_depthwise
 
+
 class MaskHead(torch.nn.Module):
     def __init__(self, cfg, in_channels):
         """
@@ -109,6 +110,7 @@ class Refine(nn.Module):
         :param pos: position of best_score  (y,x) if tracking
         :return:
         """
+        mask = None
         if debug:
             print('********refine********')
             print('xf.shape=', len(f))
@@ -121,7 +123,7 @@ class Refine(nn.Module):
             p2 = F.pad(f[2], (4, 4, 4, 4))[:, :, pos[0]:pos[0]+15, pos[1]:pos[1]+15]   # layer3  [1, 512, 15, 15]
             if debug:
                 print('p0.shape={} | p1.shape={} | p2.shape={}'.format(
-                    p0.shape, p1.shape, p2.shape))
+                p0.shape, p1.shape, p2.shape))
         else:
             # [B*17*17=289, C, kH, kW]
             p0 = F.unfold(f[0], (61, 61), padding=0, stride=4)\
@@ -144,16 +146,28 @@ class Refine(nn.Module):
 
         # [1, 32, 15, 15] if tracking
         out = self.deconv(p3)
-        if debug: print('deconv out.shape=', out.shape)
+        if debug:
+            mask = out.view(-1, 15*15)[0]
+            save_mask(mask, 15)
+            print('deconv out.shape=', out.shape)
 
         out = self.post0(F.upsample(self.h2(out) + self.v2(p2), size=(31, 31)))   # [1, 16, 31, 31]
-        if debug: print('layer3 out.shape=', out.shape)
+        if debug:
+            mask = out.view(-1, 31 * 31)[0]
+            save_mask(mask, 31)
+            print('layer3 out.shape=', out.shape)
 
         out = self.post1(F.upsample(self.h1(out) + self.v1(p1), size=(61, 61)))   # [1, 4, 61, 61]
-        if debug: print('layer2 out.shape=', out.shape)
+        if debug:
+            mask = out.view(-1, 61 * 61)[0]
+            save_mask(mask, 61)
+            print('layer2 out.shape=', out.shape)
 
         out = self.post2(F.upsample(self.h0(out) + self.v0(p0), size=(127, 127)))  # [1, 1, 127, 127]
-        if debug: print('layer1 out.shape=', out.shape)
+        if debug:
+            mask = out.view(-1, 127 * 127)[0]
+            save_mask(mask, 127)
+            print('layer1 out.shape=', out.shape)
         out = out.view(-1, 127*127)
         return out
 
@@ -188,6 +202,17 @@ class DepthwiseXCorr(nn.Module):
         feature = xcorr_depthwise(search, kernel)  # DW_Corr
         out = self.head(feature)  # Box_head or Cls_head
         return out
+
+
+import cv2
+
+def save_mask(mask, out_size):
+    mask = mask.view(out_size, out_size).cpu().data.numpy()
+    mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+    cv2.imshow('mask', mask)
+    outImgs = '/home/sf/Documents/github_proj/carSiam/demo/outImgs/'
+    name = 'mask{}.png'.format(out_size)
+    cv2.imwrite(outImgs + name, mask * 255)
 
 from carsot.core.config import cfg
 from torchsummary import summary

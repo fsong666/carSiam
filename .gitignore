@@ -23,7 +23,9 @@ results
 pretrained_models
 snapshot*
 logs*
-
+ods/test_img
+demo/basketball
+tflog
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

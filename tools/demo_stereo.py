@@ -6,6 +6,7 @@ sys.path.append('../')
 import argparse
 import cv2
 import torch
+import math
 from glob import glob
 from os.path import join, isdir
 from os import listdir
@@ -15,6 +16,7 @@ from carsot.models.model_builder import ModelBuilder
 from carsot.tracker.siamcar_tracker import SiamCARTracker
 from carsot.utils.model_load import load_pretrain
 from ods.center_cube import ViewerCUbe
+from ods.panorama import Panorama
 from carsot.utils.log_helper import init_log
 import logging
 logger = logging.getLogger('global')
@@ -81,11 +83,11 @@ def main():
 
     hp = {'lr': 0.3, 'penalty_k': 0.04, 'window_lr': 0.4}
 
-    toCube = None
-    cube = None
-    init_rect_cube = None
+    panorama = None
+    plane = None
+    init_rect_plane = None
     viewer = None
-    cube_name = 'viewer cube'
+    plane_name = 'viewer plane'
     depth = join(args.depth_img, args.video_name.split('.')[0], 'depth', 'left')
     assert isdir(depth)
 
@@ -97,49 +99,52 @@ def main():
     cv2.namedWindow(video_name, cv2.WND_PROP_FULLSCREEN)
     for idx, (frame, depth) in enumerate(zip(get_frames(args.video_name), get_frames(depth))):
         if idx == 0:
-            toCube = ViewerCUbe(frame.shape)
+            # toplane = ViewerCUbe(frame.shape)
+            panorama = Panorama(frame.shape, fov=math.pi/2.0)
+            # panorama = Panorama(frame.shape, fov=2*math.pi/3.0)
 
         if not first_frame:
             cv2.putText(frame, str(idx), (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
             cv2.imshow(video_name, frame)
-            print('Press y button to start select ROI in cube map, Esc to quit this process'
+            print('Press y button to start select ROI in plane map, Esc to quit this process'
                   '\nother button to next frame!')
-            k = cv2.waitKey(50)
+            k = cv2.waitKey(0)
             if k == 27:
                 return
             if k != ord('y'):
                 continue
             try:
                 init_rect = cv2.selectROI(video_name, frame, False, False)
-                print(init_rect)  # init first viewer
+                print('init_rect_{}={}'.format(0, init_rect))  # init first viewer
                 viewer = [init_rect[0] + init_rect[2] / 2., init_rect[1] + init_rect[3] / 2.]
-                print(viewer)
-                cube = toCube.reversToCube(frame, viewer)
-                cv2.imshow(cube_name, cube)
-                init_rect_cube = cv2.selectROI(cube_name, cube, False, False)
+                print('viewer_{}={}'.format(0, viewer))
+                assert viewer[1] < frame.shape[1] // 2
+                plane = panorama.toPlane(frame, viewer)
+                cv2.imshow(plane_name, plane)
+                init_rect_plane = cv2.selectROI(plane_name, plane, False, False)
             except:
                 exit()
-            tracker.init(cube, init_rect_cube)  # init template und first center of bbox
+            tracker.init(plane, init_rect_plane)  # init template und first center of bbox
             first_frame = True
         else:
-            cube = toCube.reversToCube(frame, viewer)
-            outputs = tracker.track(cube, hp)
+            plane = panorama.toPlane(frame, viewer)
+            outputs = tracker.track(plane, hp)
             bbox = list(map(int, outputs['bbox']))
-            cv2.rectangle(cube,
+            cv2.rectangle(plane,
                           (bbox[0], bbox[1]),
                           (bbox[0] + bbox[2], bbox[1] + bbox[3]),
                           (0, 255, 0), 2)
-            predict_ptInCube = [bbox[0] + bbox[2] / 2., bbox[1] + bbox[3] / 2.]
+            predict_ptInplane = [bbox[0] + bbox[2] / 2., bbox[1] + bbox[3] / 2.]
 
-            toCube.show_bboxInODS(viewer, bbox, frame, depth)
+            panorama.show_bboxInPanorama(viewer, bbox, frame, depth)
             cv2.putText(frame, str(idx), (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
             cv2.imshow(video_name, frame)
             # cv2.imshow('depth', depth)
-            cv2.imshow(cube_name, cube)
+            cv2.imshow(plane_name, plane)
             cv2.waitKey(10)
 
-            # update viewer, viewer=center of predicted bbox in current cube und frame
-            viewer = toCube.get_pointInPanorama(viewer, predict_ptInCube)
+            # update viewer, viewer=center of predicted bbox in current plane und frame
+            viewer = panorama.get_pointInPanorama(viewer, predict_ptInplane)
 
 
 if __name__ == '__main__':

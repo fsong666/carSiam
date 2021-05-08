@@ -5,7 +5,9 @@ from concurrent import futures
 import glob
 import cv2
 from ods.center_cube import ViewerCUbe
+from ods.panorama import Panorama
 import sys
+import math
 
 ods_base_path = './dataset'
 originAnn_base_path = join(ods_base_path, 'Annotations/origin_data/')
@@ -35,6 +37,7 @@ def printProgress(iteration, total, prefix='', suffix='', decimals=1, barLength=
 def crop_cubeVideo(video, crop_path=None):
     xmls = sorted(glob.glob(join(originAnn_base_path, video, '*.xml')))
     viewerCube = None
+    panorama = None
     ann_videos = []
     for idx, xml in enumerate(xmls):
         xmltree = ET.parse(xml)
@@ -44,20 +47,22 @@ def crop_cubeVideo(video, crop_path=None):
         imgIn = cv2.imread(xml.replace('xml', 'png').replace('Annotations', 'Data'))
 
         if idx == 0:
-            viewerCube = ViewerCUbe(imgIn.shape)
+            # viewerCube = ViewerCUbe(imgIn.shape)
+            panorama = Panorama(imgIn.shape, fov=math.pi*2/3.0)
 
         for object_iter in objects:
             trackid = int(object_iter.find('trackid').text)
-            if trackid == 0: continue
+            # if trackid == 0: continue
             bndbox = object_iter.find('bndbox')
             # two vertexes
             bbox = [int(bndbox.find('xmin').text), int(bndbox.find('ymin').text),
                     int(bndbox.find('xmax').text), int(bndbox.find('ymax').text)]
             center = [(bbox[2] + bbox[0]) / 2., (bbox[3] + bbox[1]) / 2.]
 
-            imgOut = viewerCube.reversToCube(imgIn, center)
+            # imgOut = viewerCube.reversToCube(imgIn, center)
+            imgOut = panorama.toPlane(imgIn, center)
 
-            video_crop_base_path = join(crop_path, '{}_train_{:02d}'.format(video, trackid))
+            video_crop_base_path = join(crop_path, '{}_120fov_train_{:02d}'.format(video, trackid))
             if not isdir(video_crop_base_path):
                 makedirs(video_crop_base_path)
                 ann_videos.append(video_crop_base_path.replace('Data', 'Annotations'))

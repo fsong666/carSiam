@@ -67,7 +67,7 @@ def main():
 
     # load model
     model = load_pretrain(model, args.snapshot).eval().to(device)
-    logger.info("model\n{}".format(describe(model)))
+    # logger.info("model\n{}".format(describe(model)))
 
     # build tracker
     tracker = SiamCARTracker(model, cfg.TRACK)

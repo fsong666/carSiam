@@ -102,7 +102,28 @@ def cubeToImg(coords, edge):
     elif coords[0] == "Front":
         (x, y) = (int(edge * (coords[1] + 3) / 2), int(edge * (3 - coords[3]) / 2))
     elif coords[0] == "Right":
-        (x, y) = (int(edge * (1 - coords[2]) / 2), int(edge * (1 - coords[3]) / 2))
+        # (x, y) = (int(edge * (1 - coords[2]) / 2), int(edge * (1 - coords[3]) / 2))
+        (x, y) = (int(edge * (5 - coords[2]) / 2), int(edge * (3 - coords[3]) / 2))
+
+    elif coords[0] == "Back":
+        (x, y) = (int(edge * (7 - coords[1]) / 2), int(edge * (3 - coords[3]) / 2))
+
+    elif coords[0] == "Top":
+        (x, y) = (int(edge * (3 - coords[1]) / 2), int(edge * (1 + coords[2]) / 2))
+    elif coords[0] == "Bottom":
+        (x, y) = (int(edge * (3 - coords[1]) / 2), int(edge * (5 - coords[2]) / 2))
+    else:
+        (x, y) = (0, 0)
+    return x, y
+
+
+def cubeToImg2(coords, edge):
+    if coords[0] == "Left":  # z
+        (x, y) = (int(edge * (coords[2] + 1) / 2), int(edge * (3 - coords[3]) / 2))
+    elif coords[0] == "Front":
+        (x, y) = (int(edge * (coords[1] + 3) / 2), int(edge * (3 - coords[3]) / 2))
+    elif coords[0] == "Right":
+        # (x, y) = (int(edge * (1 - coords[2]) / 2), int(edge * (1 - coords[3]) / 2))
         (x, y) = (int(edge * (5 - coords[2]) / 2), int(edge * (3 - coords[3]) / 2))
 
     elif coords[0] == "Back":
@@ -150,7 +171,8 @@ def convert(imgIn, imgOut):
             outPix[x, y] = pixel
 
 def cube():
-    imgIn = './test_img/test.png'
+    # imgIn = './test_img/test.png'
+    imgIn = './test_img/street001.png'
     imgIn = Image.open(imgIn)
     inSize = imgIn.size
     imgOut = Image.new("RGB", (inSize[0], int(inSize[0] * 3 / 4)), "black")
@@ -162,6 +184,7 @@ def cube():
         time_elapsed // 60, time_elapsed % 60))
 
     imgOut.show()
+    imgOut.save("./test_img/streetCubeMap1.png")
 
 
 def crop_cv():

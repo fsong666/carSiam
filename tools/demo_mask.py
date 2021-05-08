@@ -50,7 +50,9 @@ def get_frames(video_name):
             else:
                 break
     else:
-        images = sorted(glob(os.path.join(video_name, 'img', '*.jp*')))
+        print('run img')
+        # images = sorted(glob(os.path.join(video_name, 'img', '*.jp*')))
+        images = sorted(glob(os.path.join(video_name, '*.jp*')))
         for img in images:
             frame = cv2.imread(img)
             yield frame
@@ -74,7 +76,7 @@ def main():
     # load model
     model = load_pretrain(model, args.snapshot).eval().to(device)
     set_model_no_grad(model)
-    logger.info("config \n{}".format(json.dumps(cfg, indent=4)))
+    # logger.info("config \n{}".format(json.dumps(cfg, indent=4)))
     # logger.info("model\n{}".format(describe(model)))
 
     # build tracker
@@ -85,6 +87,7 @@ def main():
     first_frame = True
     if args.video_name:
         video_name = args.video_name.split('/')[-1].split('.')[0]
+        print(video_name)
     else:
         video_name = 'webcam'
     cv2.namedWindow(video_name, cv2.WND_PROP_FULLSCREEN)
@@ -94,9 +97,11 @@ def main():
                 init_rect = cv2.selectROI(video_name, frame, False, False)
             except:
                 exit()
-            tracker.init(frame, init_rect)
+            # tracker.init(frame, init_rect)
+            tracker.init_TemplateObj(frame, init_rect)
             first_frame = False
         else:
+            print(idx, end='')
             outputs = tracker.track(frame, hp)
             if 'polygon' in outputs:
                 # polygon = np.array(outputs['polygon']).astype(np.int32)
@@ -105,6 +110,7 @@ def main():
                 # mask 是浮点数，mask=mask > THERSHOLD, 得到1,0矩阵
                 mask = ((outputs['mask'] > cfg.TRACK.MASK_THERSHOLD) * 255)
                 mask = mask.astype(np.uint8)
+                cv2.imshow('maskODS',mask)
                 mask = np.stack([mask, mask*255, mask]).transpose(1, 2, 0)
                 frame = cv2.addWeighted(frame, 0.77, mask, 0.23, -1)
 
@@ -117,7 +123,7 @@ def main():
                 cv2.rectangle(frame, (bbox[0], bbox[1]),
                               (bbox[0]+bbox[2], bbox[1]+bbox[3]),
                               (0, 255, 0), 2)
-
+            print('---')
             cv2.putText(frame, str(idx), (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
             cv2.imshow(video_name, frame)
             cv2.waitKey(10)

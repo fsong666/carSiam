@@ -110,6 +110,10 @@ def main():
     step = distance // dq_length
     # fov = math.pi*2/3.0
     fov = math.pi/2.0
+    total_mask = np.ones([1200, 1200, 3], np.uint8)
+    bgMask_path = '../demo/mall'
+    assert isdir(bgMask_path)
+    c = np.array([1, 0, 1], dtype=np.uint8)
 
     first_frame = False
     if args.video_name:
@@ -117,11 +121,12 @@ def main():
     else:
         video_name = 'webcam'
     cv2.namedWindow(video_name, cv2.WND_PROP_FULLSCREEN)
-    for idx, (frame, depth) in enumerate(zip(get_frames(args.video_name), get_frames(depth))):
+    for idx, (frame, depth, bg_mask) in enumerate(zip(get_frames(args.video_name), get_frames(depth), get_frames(bgMask_path))):
         if idx == 0:
             # panorama = ViewerCUbe(frame.shape)
             panorama = Panorama(frame.shape, fov=fov)
             backGround = BackGround(frame, dq_length, fov=fov)
+            backGround.init_dq_futureMask(bgMask_path, distance)
 
         if not first_frame:
             cv2.putText(frame, str(idx), (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
@@ -152,7 +157,6 @@ def main():
                 model_list.append(model)
                 tracker = SiamCARMaskTracker(model, cfg.TRACK)
                 tracker.init(plane, init_rect_plane)  # init template und first center of bbox
-                # tracker.init_TemplateObj(plane, init_rect_plane)
                 tracker_list.append(tracker)
                 bbox_list.append([])
                 mask_list.append([])
@@ -167,14 +171,10 @@ def main():
             start_idx = idx + 1
         else:
             print(idx, end='')
-            s = time.time()
             sample = (idx - start_idx) % step == 0
             for i in range(len(tracker_list)):
                 plane = panorama.toPlane(frame, viewer_list[i])
-                start = time.time()
-                # outputs = tracker_list[i].track(plane, hp, panorama, viewer_list[i], depth)
                 outputs = tracker_list[i].track(plane, hp)
-                # print_time(start, 'track')
                 bbox = list(map(int, outputs['bbox']))
                 bbox_list[i] = bbox
                 update_list[i] = outputs['update']
@@ -182,43 +182,34 @@ def main():
                               (bbox[0], bbox[1]),
                               (bbox[0] + bbox[2], bbox[1] + bbox[3]),
                               (0, 255, 0), 2)
-                if 'mask' in outputs:
-                    mask = ((outputs['mask'] > cfg.TRACK.MASK_THERSHOLD) * 255)
-                    mask = mask.astype(np.uint8)
-                    mask = np.stack([mask, mask * 255, mask]).transpose(1, 2, 0)
-                    mask_list[i] = mask
-                    plane = cv2.addWeighted(plane, 0.8, mask, 0.2, -1)
                 cv2.imshow(plane_name.format(i), plane)
-                if sample or idx >= start_idx + distance:
-                    backGround.get_maskBackGround(viewer_list[i], bbox, depth, idx)
-
-            # start=time.time()
+            #     if sample or idx >= start_idx + distance:
+            #         backGround.get_maskBackGround(viewer_list[i], bbox, depth, idx)
+            #
+            mask_temp = (~(bg_mask//255).astype(np.bool)).astype(np.uint8)
+            backGround.total_mask = mask_temp
             if idx >= start_idx + distance:
-                bg = backGround.get_videoBackGround(frame, update=sample, direction=0)
+                bg = backGround.get_videoBackGround(frame, update=sample)
                 cv2.putText(bg, str(idx), (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
                 cv2.imshow('backGround', bg)
             cv2.putText(frame, str(idx), (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
             if sample:
-                backGround.append_previousFrameAndBGMask(frame)
+                backGround.append_frameAndBGMask(frame)
+                backGround.append_futureBGMask(idx)
             backGround.reset()
-            # print_time(start, 'backGround')
 
             for i in range(len(tracker_list)):
-                start = time.time()
                 panorama.show_bboxInPanorama(viewer_list[i], bbox_list[i], frame, depth)
-                # print_time(start, 'show_bbox_{}'.format(i))
 
-                frame = panorama.show_maskInPanorama(viewer_list[i], mask_list[i], bbox_list[i], frame, depth)
                 # update viewer, viewer=center of predicted bbox in current plane and frame
                 bbox_center = getCenter(bbox_list[i])
                 if update_list[i]:
-                    # print('update viewer')
                     viewer_list[i] = panorama.get_pointInPanorama(viewer_list[i], bbox_center)
                 # print('viewer=', viewer_list[i])
-            # print_time(s, 'total')
             print('----')
+            frame = cv2.addWeighted(frame, 0.8, bg_mask*c, 0.2, 0)
+            cv2.imshow('bg_mask', bg_mask)
             cv2.imshow(video_name, frame)
-            # cv2.imshow('depth', depth)
             cv2.waitKey(10)
 
 

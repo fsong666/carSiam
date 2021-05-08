@@ -59,5 +59,6 @@ class ODSDataset(Dataset):
                                           meta_data[video]['img_names'],
                                           meta_data[video]['gt_rect'])
 
-
+        self.attr = {}
+        self.attr['ALL'] = list(self.videos.keys())
 

@@ -38,7 +38,7 @@ TRACK:
     CONTEXT_AMOUNT: 0.5
     STRIDE: 8
     MASK_THERSHOLD: 0.15
-#    hanming: False
+    hanming: False
 
 
 TRAIN:

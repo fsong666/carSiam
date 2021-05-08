@@ -2,18 +2,17 @@ from math import pi, sin, cos, tan, atan2, hypot, modf
 import numpy as np
 import time
 import cv2
+from ods.basePanorama import BasePanorama
 
 
 def cot(angle):
     return 1 / tan(angle)
 
 
-class ViewerCUbe(object):
-    def __init__(self, imgInShape):
-        (self.h, self.w) = imgInShape[:2]  # 600, 1200   1200, 1200
-        self.h_ods = self.w // 2
-        print('init ViewerCUbe ', imgInShape)
-        self.edge = int(self.w / 4)  # 2pi/4==pi/2
+class ViewerCUbe(BasePanorama):
+    def __init__(self, imgInShape, fov=None):
+        super(ViewerCUbe, self).__init__(imgInShape[:2])
+        self.edge = int(self.w / 4)  # 2pi/4==pi/2, correspond diameter
         self.outSize = (self.edge, self.edge, 3)
         self.rotation = None
         self.inv_rotation = None
@@ -78,6 +77,8 @@ class ViewerCUbe(object):
                 else:
                     (x, y, z) = (0, 0, 0)
 
+                # 半径为1，　直径为2的单位球体
+                # 将有正负的值转化成图像坐标的绝对正值 所以(y+1) (1-z), /２, 然后比例放大edge倍
                 (u, v) = (int(self.edge * (y + 1) / 2), int(self.edge * (1 - z) / 2))
 
                 if u >= self.outSize[1]:
@@ -92,6 +93,10 @@ class ViewerCUbe(object):
         return imgOut
 
     def reversToCube(self, imgIn, in_viewer):
+        """
+        324ms for cube without inv_rotation
+        593ms for cube with inv_rotation
+        """
         viewer = list(in_viewer).copy()
         viewer_h = viewer[1]
         if viewer[1] >= self.h_ods:
@@ -110,8 +115,11 @@ class ViewerCUbe(object):
         # print('revers toCUbe-----')
         for j in range(self.edge):
             for i in range(self.edge):
+                # 归化为edge为2的像素坐标
+                # get normalized (a, b) from (i, j) in left cube
                 a = 2.0 * float(i) / self.edge
                 b = 2.0 * float(j) / self.edge
+                # get 3d point (x, y, z) from (a, b) in left cube
                 (x, y, z) = (1.0, a - 1.0, 1.0 - b)
                 point = np.array([x, y, z]).reshape(-1, 1)
 
@@ -141,6 +149,9 @@ class ViewerCUbe(object):
 
     def show_cube(self, imgIn, viewer):
         cv2.imshow('viewer cube', self.reversToCube(imgIn, viewer))
+
+    def toPlane(self, pano, viewer):
+        return self.reversToCube(pano, viewer)
 
     def get_inv_rotation(self, in_viewer):
         """
@@ -199,11 +210,11 @@ class ViewerCUbe(object):
             vf = 0
         return int(uf), int(vf)
 
-    def get_pointInPanorama(self, viewer, pt_cube):
+    def get_pointInPanorama(self, viewer, pt):
         self.get_inv_rotation(viewer)
-        return self.location_panorama(pt_cube)
+        return self.location_panorama(pt)
 
-    def show_bboxInODS(self, viewer, bbox, imgOut, depth, right=True):
+    def show_bboxInPanorama(self, viewer, bbox, imgOut, depth, right=True):
         self.get_inv_rotation(viewer)
         (x, y, w, h) = bbox
         center_left = self.location_panorama((x + w / 2., y + h / 2.))
@@ -242,11 +253,15 @@ class ViewerCUbe(object):
         cv2.line(imgOut, (center_right[0], 0), (center_right[0], self.h - 1), (0, 0, 255), 1)
         # print('{}:{} -- {} | {}'.format(depth_value, center_left, center_right, center_left[0] - center_right[0]))
 
-    def show_maskInODS(self, viewer, mask, bbox, imgOut, depth, right=True):
+    def show_maskInPanorama(self, viewer, mask, bbox, imgOut, depth, right=True, idx=None):
+        """
+        343ms
+        135ms from if (mask[j, i] == np.array([255, 1, 255])).all()
+        """
         self.get_inv_rotation(viewer)
         disparity = 0
+        (x, y, w, h) = bbox
         if right:
-            (x, y, w, h) = bbox
             center_left = self.location_panorama((x + w / 2., y + h / 2.))
 
             depth_value = depth[center_left[1], center_left[0]][0]
@@ -257,21 +272,30 @@ class ViewerCUbe(object):
                 disparity = 0
 
         new_mask = np.zeros(imgOut.shape, dtype=np.uint8)
-        h, w, _ = mask.shape
-        thickness = 1
-        for j in range(h):
-            for i in range(w):
+        mask_h, mask_w, _ = mask.shape
+        thickness = 2
+        y_stop = min(y + h, mask_h)
+        x_stop = min(x + w, mask_w)
+        for j in range(y, y_stop):
+            for i in range(x, x_stop):
                 if (mask[j, i] == np.array([255, 1, 255])).all():
                     (u_left, v_left) = self.location_panorama((i, j))
                     # new_mask[v_left, u_left] = mask[j, i]
-                    cv2.circle(new_mask, (u_left, v_left), thickness, (255, 1, 255), thickness)
+                    cv2.circle(new_mask, (u_left, v_left), thickness, (1, 1, 1), thickness)
                     if right:
                         u_right = round(u_left - disparity)
                         v_right = v_left + self.h_ods
-                        cv2.circle(new_mask, (u_right, v_right), thickness, (255, 1, 255), thickness)
-
-        imgOut = cv2.addWeighted(imgOut, 0.8, new_mask, 0.2, -1)
-        return imgOut
+                        # new_mask[v_right, u_right] = mask[j, i]
+                        cv2.circle(new_mask, (u_right, v_right), thickness, (1, 1, 1), thickness)
+        if idx is not None:
+            # cv2.putText(new_mask, str(idx), (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            name = './mask/{:04d}.png'.format(idx + 600)
+            # cv2.imwrite(name, new_mask)
+        # cv2.imshow('maskODS', new_mask)
+        c = np.array([255, 1, 255], dtype=np.uint8)
+        imgOut = cv2.addWeighted(imgOut, 0.8, new_mask*c, 0.2, -1)
+        new_mask = (~new_mask.astype(np.bool)).astype(np.uint8)
+        return imgOut, new_mask
 
 
 def test_reversCorr():
@@ -293,7 +317,10 @@ def test_reversCorr():
 
     pt_cube = (100, 250)
     cv2.circle(imgOut, pt_cube, 3, (0, 255, 255), 3)
+    start = time.time()
     pt_src = centerCube.get_pointInPanorama(viewer, pt_cube)
+    print('time=', time.time() - start)
+    # print_time(start)
     cv2.circle(imgIn, pt_src, 3, (0, 255, 255), 3)
 
     cv2.imshow('imgIn', imgIn)
@@ -303,11 +330,12 @@ def test_reversCorr():
 
 
 def test_cv():
-    imgIn = './test_img/test.png'
+    # imgIn = './test_img/test.png'
+    imgIn = './test_img/street001.png'
     imgIn = cv2.imread(imgIn)
     cx = imgIn.shape[1] // 2
     # viewer = [cx + 300, 200]
-    viewer = [450, 386]
+    viewer = [450+300, 286+80]
 
     print('origin viewer:', viewer)
 
@@ -317,15 +345,19 @@ def test_cv():
     since = time.time()
     # imgOut = centerCube.toCUbe(imgIn, viewer)
     imgOut = centerCube.reversToCube(imgIn, viewer)  # 583ms
-    # centerCube.show_cube(imgIn, viewer)
-    time_elapsed = time.time() - since
-    print('Total complete in {:.0f}s {:.0f}ms'.format(
-        modf(time_elapsed)[1], modf(time_elapsed)[0] * 1000))
+    print_time(since)
 
     cv2.imshow('imgIn', imgIn)
     cv2.imshow('imgOut', imgOut)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
+    cv2.imwrite('./test_img/street001_centerCube.png', imgOut)
+
+
+def print_time(since):
+    time_elapsed = time.time() - since
+    print('Total complete in {:.0f}s {:.0f}ms'.format(
+        modf(time_elapsed)[1], modf(time_elapsed)[0] * 1000))
 
 
 if __name__ == '__main__':

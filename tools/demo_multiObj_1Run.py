@@ -30,8 +30,9 @@ parser.add_argument('--config', type=str, default='../experiments/siamcar_r50/co
 parser.add_argument('--snapshot', type=str, default='./snapshot_r50/new_model.pth', help='model name')
 parser.add_argument('--video_name', default='../test_dataset/Biker', type=str, help='videos or image files')
 parser.add_argument('--depth_img', default='../ods/dataset/depth', type=str, help='depth images')
+parser.add_argument('--reDetect', action='store_true', default=True, help='whether reDetection')
 args = parser.parse_args()
-
+outImgs = '/home/sf/Documents/github_proj/carSiam/demo/outImgs/missErfolg/'
 
 def get_frames(video_name):
     if not video_name:
@@ -110,6 +111,7 @@ def main():
     step = distance // dq_length
     # fov = math.pi*2/3.0
     fov = math.pi/2.0
+    total_mask = np.ones([1200, 1200, 3], np.uint8)
 
     first_frame = False
     if args.video_name:
@@ -146,6 +148,7 @@ def main():
                     plane = panorama.toPlane(frame, viewer)
                     cv2.imshow(plane_name.format(n), plane)
                     init_rect_plane = cv2.selectROI(plane_name.format(n), plane, False, False)
+
                 except:
                     exit()
                 model = load_model(device)
@@ -166,60 +169,69 @@ def main():
             first_frame = True
             start_idx = idx + 1
         else:
-            print(idx, end='')
-            s = time.time()
+            print(idx)
             sample = (idx - start_idx) % step == 0
+
             for i in range(len(tracker_list)):
                 plane = panorama.toPlane(frame, viewer_list[i])
-                start = time.time()
-                # outputs = tracker_list[i].track(plane, hp, panorama, viewer_list[i], depth)
-                outputs = tracker_list[i].track(plane, hp)
-                # print_time(start, 'track')
+                planeCopy = plane.copy()
+                cv2.putText(planeCopy, str(idx), (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                # cv2.imwrite(outImgs + 'planeIn.png', planeCopy)
+                outputs = tracker_list[i].track(plane, hp, idx=idx, obj=i)
                 bbox = list(map(int, outputs['bbox']))
                 bbox_list[i] = bbox
                 update_list[i] = outputs['update']
+                color = (0, 255, 0) if i == 0 else (255, 0, 0)
                 cv2.rectangle(plane,
                               (bbox[0], bbox[1]),
                               (bbox[0] + bbox[2], bbox[1] + bbox[3]),
-                              (0, 255, 0), 2)
+                              color, 2)
                 if 'mask' in outputs:
                     mask = ((outputs['mask'] > cfg.TRACK.MASK_THERSHOLD) * 255)
                     mask = mask.astype(np.uint8)
                     mask = np.stack([mask, mask * 255, mask]).transpose(1, 2, 0)
                     mask_list[i] = mask
                     plane = cv2.addWeighted(plane, 0.8, mask, 0.2, -1)
+                cv2.putText(plane, str(idx), (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
                 cv2.imshow(plane_name.format(i), plane)
-                if sample or idx >= start_idx + distance:
-                    backGround.get_maskBackGround(viewer_list[i], bbox, depth, idx)
-
-            # start=time.time()
-            if idx >= start_idx + distance:
-                bg = backGround.get_videoBackGround(frame, update=sample, direction=0)
-                cv2.putText(bg, str(idx), (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-                cv2.imshow('backGround', bg)
+                # cv2.imwrite(outImgs + 'planeOut.png', plane)
+            #     if sample or idx >= start_idx + distance:
+            #         backGround.get_maskBackGround(viewer_list[i], bbox, depth, idx)
+            #
+            # if idx >= start_idx + distance:
+            #     bg = backGround.get_videoBackGround(frame, update=sample)
+            #     cv2.putText(bg, str(idx), (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            #     cv2.imshow('backGround', bg)
             cv2.putText(frame, str(idx), (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-            if sample:
-                backGround.append_previousFrameAndBGMask(frame)
-            backGround.reset()
-            # print_time(start, 'backGround')
+            # cv2.imwrite(outImgs + 'frame.png', frame)
+            # if sample:
+            #     backGround.append_frame(frame)
+            # backGround.reset()
 
             for i in range(len(tracker_list)):
-                start = time.time()
-                panorama.show_bboxInPanorama(viewer_list[i], bbox_list[i], frame, depth)
-                # print_time(start, 'show_bbox_{}'.format(i))
+                panorama.show_bboxInPanorama(viewer_list[i], bbox_list[i], frame, depth, obj=i)
 
-                frame = panorama.show_maskInPanorama(viewer_list[i], mask_list[i], bbox_list[i], frame, depth)
-                # update viewer, viewer=center of predicted bbox in current plane and frame
+                frame, bg_mask = panorama.show_maskInPanorama(viewer_list[i], mask_list[i], bbox_list[i], frame, depth, save=True)
+                total_mask *= bg_mask
                 bbox_center = getCenter(bbox_list[i])
                 if update_list[i]:
                     # print('update viewer')
                     viewer_list[i] = panorama.get_pointInPanorama(viewer_list[i], bbox_center)
                 # print('viewer=', viewer_list[i])
-            # print_time(s, 'total')
-            print('----')
+            current_total_mask = (~total_mask.astype(np.bool)).astype(np.uint8) * 255
+            cv2.putText(current_total_mask, str(idx), (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            # cv2.imshow('bg_mask', current_total_mask)
+            # name = './mall/{:04d}.png'.format(idx + 600)
+            # if 90 <= idx <= 154:
+                # cv2.imwrite(name, current_total_mask)
+            total_mask = np.ones([1200, 1200, 3], np.uint8)
+
             cv2.imshow(video_name, frame)
+            trackingName = 'tracking{}.png'.format(idx)
+            cv2.imwrite(outImgs + trackingName, frame)
             # cv2.imshow('depth', depth)
-            cv2.waitKey(10)
+            cv2.waitKey(1)
+            print('----')
 
 
 def getCenter(bbox):

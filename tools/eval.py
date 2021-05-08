@@ -5,6 +5,7 @@ from tqdm import tqdm
 from multiprocessing import Pool
 from toolkit.datasets import OTBDataset, UAVDataset, LaSOTDataset, VOTDataset, ODSDataset
 from toolkit.evaluation import OPEBenchmark, AccuracyRobustnessBenchmark, EAOBenchmark
+from toolkit.visualization import draw_success_precision
 
 parser = argparse.ArgumentParser(description='tracking evaluation')
 parser.add_argument('--tracker_path', '-p', type=str, default='./results',
@@ -64,6 +65,7 @@ def main():
                 precision_ret.update(ret)
         benchmark.show_result(success_ret, precision_ret,
                               show_video_level=args.show_video_level)
+        draw_success_precision(success_ret, 'OTB', dataset.attr['ALL'], 'ALL', precision_ret=precision_ret)
 
     elif 'ODS' == args.dataset:
         dataset = ODSDataset(args.dataset, root)
@@ -81,6 +83,7 @@ def main():
                 precision_ret.update(ret)
         benchmark.show_result(success_ret, precision_ret,
                               show_video_level=args.show_video_level)
+        draw_success_precision(success_ret, 'ODS', dataset.attr['ALL'], 'ALL', precision_ret=precision_ret)
 
     elif args.dataset in ['VOT2016', 'VOT2017', 'VOT2018', 'VOT2019']:
         dataset = VOTDataset(args.dataset, root)
@@ -100,6 +103,7 @@ def main():
                 eao_result.update(ret)
         ar_benchmark.show_result(ar_result, eao_result,
                                  show_video_level=args.show_video_level)
+
 
     elif 'LaSOT' == args.dataset:
         dataset = LaSOTDataset(args.dataset, root)

@@ -39,7 +39,7 @@ TRACK:
     STRIDE: 8
 
 TRAIN:
-    DEBUG: False
+    DEBUG: True
     EPOCH: 20
     START_EPOCH: 0
     BATCH_SIZE: 1 #80 # 32

@@ -1,13 +1,17 @@
 source /home/sf/anaconda3/bin/activate pysot
 
-#data=VOT2018
+data=VOT2018
 #data=OTB50
-data=ODS
+#data=ODS
 
 python -u ./tools/eval.py \
   --tracker_path ./results \
   --dataset ${data} \
   --num 1 \
-  --tracker_prefix 'vid_40_e19.pth0.15_0.1_0.4'
+  --tracker_prefix ''
+#  --tracker_prefix 'mask_refine_e20_bce'
+#  --tracker_prefix 'SiamMaskCAR'
+#  --show_video_level \
+
 
 

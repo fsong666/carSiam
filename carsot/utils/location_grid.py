@@ -13,7 +13,7 @@ def compute_locations(features, stride, search_size=255):
 
 # stride = 8
 def compute_locations_per_level(h, w, stride, device, search_size, debug=False):
-    margin = search_size//2 - h//2*stride
+    margin = search_size//2 - h//2*stride  # 255//2 -25//2*8 = 31
     shifts_x = torch.arange(
         0, w * stride, step=stride,
         dtype=torch.float32, device=device
@@ -43,7 +43,7 @@ def compute_locations_per_level(h, w, stride, device, search_size, debug=False):
 
 
 if __name__ == '__main__':
-    # loc = compute_locations_per_level(25, 25, 8, 'cuda', 255)
-    loc = compute_locations_per_level(3, 3, 8, 'cuda', 143)
+    loc = compute_locations_per_level(25, 25, 8, 'cuda', 255)
+    # loc = compute_locations_per_level(3, 3, 8, 'cuda', 143)
     print(loc.shape)
     print(loc)

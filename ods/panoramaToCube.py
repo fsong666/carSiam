@@ -71,6 +71,8 @@ def convertToCubes(imgIn):
     and find the closest corresponding source pixel.
 
     Note:fest convert panorama to 6 cubes.
+    157ms for one cube
+    1s 7ms for 6 cubes
     """
     inSize = imgIn.shape  # (600, 1200)
     imgOut = np.zeros((int(inSize[1] * 3 / 4), inSize[1], 3), np.uint8)
@@ -222,7 +224,8 @@ def test_classToCUbe():
 
 
 def test_Tocube():
-    imgIn = cv2.imread('./test_img/test.png')
+    # imgIn = cv2.imread('./test_img/test.png')
+    imgIn = cv2.imread('./test_img/street001.png')
     since = time.time()
     imgOut = convertToCubes(imgIn)
     time_elapsed = time.time() - since
@@ -234,6 +237,7 @@ def test_Tocube():
     k = cv2.waitKey(0)
     if k == 27:
         cv2.destroyAllWindows()
+    cv2.imwrite('streetCubeMap.png', imgOut)
 
 
 if __name__ == '__main__':

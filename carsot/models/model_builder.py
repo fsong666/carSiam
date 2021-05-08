@@ -43,15 +43,21 @@ class ModelBuilder(nn.Module):
         # build loss
         self.loss_evaluator = make_siamcar_loss_evaluator(cfg)
 
-    def template(self, z):
+        self.zf = None
+        self.zf2 = None
+
+    def template(self, z, reDetect=False):
         zf = self.backbone(z)
         if cfg.REFINE.REFINE:
             zf = zf[2:]
         if cfg.ADJUST.ADJUST:
             zf = self.neck(zf)
-        self.zf = zf
+        if not reDetect:
+            self.zf = zf
+        else:
+            self.zf2 = zf
 
-    def track(self, x):
+    def track(self, x, reDetect=False):
         xf = self.backbone(x)
         if cfg.REFINE.REFINE:
             self.xf = xf[:3]
@@ -59,10 +65,16 @@ class ModelBuilder(nn.Module):
         if cfg.ADJUST.ADJUST:
             xf = self.neck(xf)
 
-        features = self.xcorr_depthwise(xf[0],self.zf[0])
-        for i in range(len(xf)-1):
-            features_new = self.xcorr_depthwise(xf[i+1],self.zf[i+1])
-            features = torch.cat([features,features_new],1)
+        if not reDetect:
+            features = self.xcorr_depthwise(xf[0], self.zf[0])
+            for i in range(len(xf)-1):
+                features_new = self.xcorr_depthwise(xf[i+1],self.zf[i+1])
+                features = torch.cat([features, features_new], 1)
+        else:
+            features = self.xcorr_depthwise(xf[0], self.zf2[0])
+            for i in range(len(xf)-1):
+                features_new = self.xcorr_depthwise(xf[i+1],self.zf2[i+1])
+                features = torch.cat([features, features_new], 1)
         features = self.down(features)
 
         cls, loc, cen = self.car_head(features)
@@ -137,7 +149,7 @@ class ModelBuilder(nn.Module):
             if cfg.REFINE.REFINE:
                 pred_mask = self.refine_head(self.xf_refine, features)
             else:
-                pred_mask = self.mask_head(features)
+                pred_mask = self.mask_head(features)  # [-1, 3969=63*63, 25, 25]
             if self.debug:
                 logger.warning('---------input mask------')
                 logger.warning('label_mask:{}'.format(label_mask.shape))
