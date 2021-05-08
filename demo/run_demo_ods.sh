@@ -1,7 +1,7 @@
 source /home/sf/anaconda3/bin/activate pysot
 
 #video=street.mp4
-video=mall.mp4
+#video=mall.mp4
 #video=cave.mp4
 #video=lion.mp4
 #video=Elephants.mp4
@@ -11,7 +11,7 @@ video=mall.mp4
 #video=../ods/dataset/Data/origin_data/street_low_right
 #video=../ods/dataset/Data/origin_data/cave_low_left
 #video=../ods/dataset/Data/origin_data/mall_low_right
-#video=../ods/dataset/Data/origin_data/mall_combined
+video=../ods/dataset/Data/origin_data/mall_combined
 #video=../ods/dataset/Data/origin_data/street_combined
 #video=cube_street
 #video=cube_low_right_cave
@@ -35,8 +35,8 @@ path_mask=../experiments/siamcar_mask_r50
 #model=checkpoint_e15.pth
 #model=base_120fov_e16.pth
 
-model=mask_refine_e20_bce.pth   # SiamMaskCAR to test
-#model=mask_refine_ods_e19.pth    # SiamMaskCAR2  used for demo occlusion
+#model=mask_refine_e20_bce.pth   # SiamMaskCAR to test
+model=mask_refine_ods_e19.pth    # SiamMaskCAR2  used for demo occlusion
 #model=base_120fov_e16.pth
 
 #python ../tools/demo_label.py \
@@ -66,16 +66,16 @@ model=mask_refine_e20_bce.pth   # SiamMaskCAR to test
 #	--depth_img ${depth}
 
 #### mask Ray
-python ../tools/demo_multiObj_1Run.py \
-	--config ${path_mask}/config_refine.yaml \
-	--snapshot ${path_mask}/${model}  \
-	--video_name ${video} \
-	--depth_img ${depth}
-
-
-## future bg_mask
-#python ../tools/demo_multiObj_timeContext.py \
+#python ../tools/demo_multiObj_1Run.py \
 #	--config ${path_mask}/config_refine.yaml \
 #	--snapshot ${path_mask}/${model}  \
 #	--video_name ${video} \
 #	--depth_img ${depth}
+
+
+## future bg_mask
+python ../tools/demo_multiObj_timeContext.py \
+	--config ${path_mask}/config_refine.yaml \
+	--snapshot ${path_mask}/${model}  \
+	--video_name ${video} \
+	--depth_img ${depth}

@@ -227,8 +227,8 @@ def main():
             total_mask = np.ones([1200, 1200, 3], np.uint8)
 
             cv2.imshow(video_name, frame)
-            trackingName = 'tracking{}.png'.format(idx)
-            cv2.imwrite(outImgs + trackingName, frame)
+            # trackingName = 'tracking{}.png'.format(idx)
+            # cv2.imwrite(outImgs + trackingName, frame)
             # cv2.imshow('depth', depth)
             cv2.waitKey(1)
             print('----')
