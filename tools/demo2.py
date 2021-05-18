@@ -6,12 +6,10 @@ import argparse
 import cv2
 import torch
 from glob import glob
-import numpy as np
-import json
 
 from carsot.core.config import cfg
 from carsot.models.model_builder import ModelBuilder
-from carsot.tracker.siamcar_mask_tracker import SiamCARMaskTracker
+from carsot.tracker.siamcar_tracker import SiamCARTracker
 from carsot.utils.model_load import load_pretrain
 from carsot.utils.misc import describe
 from carsot.utils.log_helper import init_log
@@ -50,23 +48,17 @@ def get_frames(video_name):
             else:
                 break
     else:
-        print('run img')
-        # images = sorted(glob(os.path.join(video_name, 'img', '*.jp*')))
-        images = sorted(glob(os.path.join(video_name, '*.jp*')))
+        images = sorted(glob(os.path.join(video_name, 'img', '*.jp*')))
         for img in images:
             frame = cv2.imread(img)
             yield frame
 
 
-def set_model_no_grad(model):
-    for param in model.parameters():
-        param.requires_grad = False
-
-
 def main():
-    # load config
     cfg.merge_from_file(args.config)
     init_log('global', logging.INFO)
+    # load config
+    cfg.merge_from_file(args.config)
     cfg.CUDA = torch.cuda.is_available()
     device = torch.device('cuda' if cfg.CUDA else 'cpu')
 
@@ -75,58 +67,44 @@ def main():
 
     # load model
     model = load_pretrain(model, args.snapshot).eval().to(device)
-    set_model_no_grad(model)
-    # logger.info("config \n{}".format(json.dumps(cfg, indent=4)))
     # logger.info("model\n{}".format(describe(model)))
 
     # build tracker
-    tracker = SiamCARMaskTracker(model, cfg.TRACK)
+    tracker = SiamCARTracker(model, cfg.TRACK)
 
     hp = {'lr': 0.3, 'penalty_k': 0.04, 'window_lr': 0.4}
 
-    first_frame = True
+    first_frame = False
     if args.video_name:
         video_name = args.video_name.split('/')[-1].split('.')[0]
-        print(video_name)
     else:
         video_name = 'webcam'
     cv2.namedWindow(video_name, cv2.WND_PROP_FULLSCREEN)
     for idx, frame in enumerate(get_frames(args.video_name)):
-        if first_frame:
-            try:
-                init_rect = cv2.selectROI(video_name, frame, False, False)
-            except:
-                exit()
-            tracker.init(frame, init_rect)
-            # tracker.init_TemplateObj(frame, init_rect)
-            first_frame = False
-        else:
-            print(idx, end='')
-            outputs = tracker.track(frame, hp)
-            if 'polygon' in outputs:
-                # polygon = np.array(outputs['polygon']).astype(np.int32)
-                # cv2.polylines(frame, [polygon.reshape((-1, 1, 2))],
-                #               True, (0, 255, 0), 3)
-                # mask 是浮点数，mask=mask > THERSHOLD, 得到1,0矩阵
-                mask = ((outputs['mask'] > cfg.TRACK.MASK_THERSHOLD) * 255)
-                mask = mask.astype(np.uint8)
-                cv2.imshow('maskODS',mask)
-                mask = np.stack([mask, mask*255, mask]).transpose(1, 2, 0)
-                frame = cv2.addWeighted(frame, 0.77, mask, 0.23, -1)
-
-                bbox = list(map(int, outputs['bbox']))
-                cv2.rectangle(frame, (bbox[0], bbox[1]),
-                              (bbox[0] + bbox[2], bbox[1] + bbox[3]),
-                              (0, 255, 255), 2)
-            else:
-                bbox = list(map(int, outputs['bbox']))
-                cv2.rectangle(frame, (bbox[0], bbox[1]),
-                              (bbox[0]+bbox[2], bbox[1]+bbox[3]),
-                              (0, 255, 0), 2)
-            print('---')
+        if not first_frame:
             cv2.putText(frame, str(idx), (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
             cv2.imshow(video_name, frame)
-            cv2.waitKey(10)
+            print('Press y button to start select ROI in this frame, Esc to quit this process'
+                  '\nother button to next frame!')
+            k = cv2.waitKey(0)
+            if k == 27:
+                return
+            if k != ord('y'):
+                continue
+
+            init_rect = cv2.selectROI(video_name, frame, False, False)
+
+            tracker.init(frame, init_rect)
+            first_frame = True
+        else:
+            outputs = tracker.track(frame, hp)
+            bbox = list(map(int, outputs['bbox']))
+            cv2.rectangle(frame, (bbox[0], bbox[1]),
+                          (bbox[0]+bbox[2], bbox[1]+bbox[3]),
+                          (0, 255, 0), 2)
+            cv2.putText(frame, str(idx), (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            cv2.imshow(video_name, frame)
+            cv2.waitKey(50)
 
 
 if __name__ == '__main__':

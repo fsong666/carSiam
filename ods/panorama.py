@@ -186,8 +186,8 @@ class Panorama(BasePanorama):
 
         if save:
             c = np.array([255, 1, 255], dtype=np.uint8)
-            # imgOut = cv2.addWeighted(imgOut, 0.8, mask_inODS*c, 0.2, -1)
-            imgOut = cv2.addWeighted(imgOut, 0.9, mask_inODS*c, 0.1, -1)
+            imgOut = cv2.addWeighted(imgOut, 0.8, mask_inODS*c, 0.2, -1)
+            # imgOut = cv2.addWeighted(imgOut, 0.9, mask_inODS*c, 0.1, -1)
             mask_inODS = (~mask_inODS.astype(np.bool)).astype(np.uint8)
             # cv2.imshow('mask_ODS', mask_inODS*c)
             return imgOut, mask_inODS

@@ -32,7 +32,8 @@ parser.add_argument('--video_name', default='../test_dataset/Biker', type=str, h
 parser.add_argument('--depth_img', default='../ods/dataset/depth', type=str, help='depth images')
 parser.add_argument('--reDetect', action='store_true', default=True, help='whether reDetection')
 args = parser.parse_args()
-outImgs = '/home/sf/Documents/github_proj/carSiam/demo/outImgs/missErfolg/'
+outImgs = '/home/sf/Documents/github_proj/carSiam/demo/outImgs/'
+outImgs = outImgs + 'trackingStreet/'
 
 def get_frames(video_name):
     if not video_name:
@@ -177,6 +178,8 @@ def main():
                 planeCopy = plane.copy()
                 cv2.putText(planeCopy, str(idx), (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
                 # cv2.imwrite(outImgs + 'planeIn.png', planeCopy)
+                planeName = 'plane{}.png'.format(idx)
+                # cv2.imwrite(outImgs + planeName, planeCopy)
                 outputs = tracker_list[i].track(plane, hp, idx=idx, obj=i)
                 bbox = list(map(int, outputs['bbox']))
                 bbox_list[i] = bbox
@@ -194,7 +197,8 @@ def main():
                     plane = cv2.addWeighted(plane, 0.8, mask, 0.2, -1)
                 cv2.putText(plane, str(idx), (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
                 cv2.imshow(plane_name.format(i), plane)
-                # cv2.imwrite(outImgs + 'planeOut.png', plane)
+                # planeName = 'plane{}.png'.format(idx)
+                # cv2.imwrite(outImgs + planeName, plane)
             #     if sample or idx >= start_idx + distance:
             #         backGround.get_maskBackGround(viewer_list[i], bbox, depth, idx)
             #
@@ -203,7 +207,8 @@ def main():
             #     cv2.putText(bg, str(idx), (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
             #     cv2.imshow('backGround', bg)
             cv2.putText(frame, str(idx), (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-            # cv2.imwrite(outImgs + 'frame.png', frame)
+            frameName = 'frame{}.png'.format(idx)
+            # cv2.imwrite(outImgs + frameName, frame)
             # if sample:
             #     backGround.append_frame(frame)
             # backGround.reset()

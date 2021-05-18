@@ -302,8 +302,9 @@ class SiamCARMaskTracker(SiameseTracker):
                                            cfg.TRACK.INSTANCE_SIZE,
                                            round(s_x), self.channel_average)
         cv2.putText(x_img, str(idx), (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-        # cv2.imshow('inputPlane', x_img)
-        # cv2.imwrite(outImgs + 'search.png', x_img)
+        if idx == 1:
+            cv2.imshow('inputPlane', x_img)
+            cv2.imwrite(outImgs + 'search.png', x_img)
         x_img2 = x_img.copy()
         crop_box = [self.center_pos[0] - s_x / 2,
                     self.center_pos[1] - s_x / 2,
@@ -474,7 +475,7 @@ class SiamCARMaskTracker(SiameseTracker):
         mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
         # if self.debug:
         # name = 'mask{}.png'.format(idx)
-        # cv2.imshow('mask', mask)
+        cv2.imshow('mask', mask)
         # cv2.imwrite(outImgs+'mask.png', mask*255)
 
         return {

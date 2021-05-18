@@ -1,7 +1,8 @@
 source /home/sf/anaconda3/bin/activate pysot
 export PYTHONPATH=/home/sf/Documents/github_proj/carSiam
 
-video=street.mp4
+#video=street.mp4
+video=merkel.mp4
 #video=mall.mp4
 #video=cave.mp4
 #video=lion.mp4
@@ -23,7 +24,12 @@ path_mask=../experiments/siamcar_mask_r50
 #model=mask_refine_ods_e19.pth
 model=checkpoint_e19.pth
 
-python ../tools/demo.py \
+#python ../tools/demo.py \
+#	--config ${path}/config.yaml \
+#	--snapshot ${path_mask}/${model}  \
+#	--video_name ${video}
+
+python ../tools/demo2.py \
 	--config ${path}/config.yaml \
 	--snapshot ${path_mask}/${model}  \
 	--video_name ${video}

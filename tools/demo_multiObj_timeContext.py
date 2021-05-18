@@ -202,6 +202,7 @@ def main():
                 # cv2.imwrite(outImgs + name, plane)
                 backGround.get_maskBackGround(viewer_list[i], bbox, depth, idx)
 
+            cv2.imshow('bg_mask', bg_mask)
             saved_total_mask = (bg_mask//255).astype(np.bool).astype(np.uint8)
             # used saved mask as current mask
             # backGround.total_mask = (~saved_total_mask .astype(np.bool)).astype(np.uint8) .copy()
@@ -231,8 +232,8 @@ def main():
             if sample:
                 backGround.append_previousFrameAndBGMask(frame_copy, saved_total_mask)
             frame = cv2.addWeighted(frame, 0.8, bg_mask*c, 0.2, 0)
-            trackingName = 'tracking{}.png'.format(idx)
-            cv2.imwrite(outImgs + trackingName, frame)
+            # trackingName = 'tracking{}.png'.format(idx)
+            # cv2.imwrite(outImgs + trackingName, frame)
             cv2.imshow(video_name, frame)
             cv2.waitKey(1)
             # total_mask = np.ones([1200, 1200, 3], np.uint8)
